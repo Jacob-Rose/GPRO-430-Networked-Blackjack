@@ -140,12 +140,12 @@ void handleUpdate(GameState* gs)
 	
 }
 
-void handleSendingPackets(const GameState* gs)
+void handleOutputRemote(const GameState* gs)
 {
-
+	//send all input messages
 }
 
-void handleOutput(const GameState* gs)
+void handleOutputLocal(const GameState* gs)
 {
 
 }
@@ -174,9 +174,9 @@ int main(void)
 		//update
 		handleUpdate(gs);
 		//package & send
-		handleSendingPackets(gs);
+		handleOutputRemote(gs);
 		//output
-		handleOutput(gs);
+		handleOutputLocal(gs);
 	}
 
 
