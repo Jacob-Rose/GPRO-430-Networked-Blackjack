@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <vector>
 #include "RakNet/RakPeerInterface.h"
 #include "RakNet/MessageIdentifiers.h"
 #include <RakNet/RakNetTypes.h>
@@ -38,10 +39,26 @@ enum GameMessages
 	ID_GAME_MESSAGE_1 = ID_USER_PACKET_ENUM + 1
 };
 
+#pragma pack (push)
+#pragma pack (1)
+
+struct ChatMessage
+{
+	//char timeID; //ID_TIMESTAMP
+	//RakNet::Time time; //RakNet::GetTime()
+	char iD; //ID_GAME_MESSAGE_1
+	char msg[512];
+};
+
+#pragma pack (pop)
+
 struct GameState
 {
 	RakNet::RakPeerInterface* peer;
+	std::vector<ChatMessage> messages;
 };
+
+
 
 void handleInputLocal(GameState* gs)
 {
@@ -75,10 +92,19 @@ void handleInputRemote(GameState* gs)
 
 			// Use a BitStream to write a custom user message
 			// Bitstreams are easier to use than sending casted structures, and handle endian swapping automatically
-			RakNet::BitStream bsOut;
+			/*RakNet::BitStream bsOut;
 			bsOut.Write((RakNet::MessageID)ID_GAME_MESSAGE_1);
 			bsOut.Write("Hello world");
 			gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
+			*/
+			ChatMessage msg = {
+				//ID_TIMESTAMP,
+				//RakNet::GetTime(),
+				(char)ID_GAME_MESSAGE_1,
+				"Hello World"
+			};
+			gs->peer->Send((char*)&msg, sizeof(msg), HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
+
 		}
 		case ID_NEW_INCOMING_CONNECTION:
 			printf("A connection is incoming.\n");
@@ -111,6 +137,7 @@ void handleInputRemote(GameState* gs)
 void handleUpdate(GameState* gs)
 {
 	//update state of everything
+	
 }
 
 void handleSendingPackets(const GameState* gs)
