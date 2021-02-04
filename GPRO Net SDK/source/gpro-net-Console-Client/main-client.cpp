@@ -55,7 +55,9 @@ struct ChatMessage
 struct GameState
 {
 	RakNet::RakPeerInterface* peer;
-	std::vector<ChatMessage> messages;
+	std::vector<ChatMessage> messagesHandled;
+	std::vector<ChatMessage> unhandeledClientMessages;
+	std::vector<ChatMessage> unhandeledRemoteMessages;
 };
 
 
@@ -142,12 +144,12 @@ void handleUpdate(GameState* gs)
 
 void handleOutputRemote(const GameState* gs)
 {
-	//send all input messages
+	//send all input messages from player
 }
 
 void handleOutputLocal(const GameState* gs)
 {
-
+	//output all messages
 }
 
 int main(void)
