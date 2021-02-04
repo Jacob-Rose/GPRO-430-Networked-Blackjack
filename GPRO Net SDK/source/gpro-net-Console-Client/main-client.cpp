@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <vector>
+#include <iostream>
 #include "RakNet/RakPeerInterface.h"
 #include "RakNet/MessageIdentifiers.h"
 #include <RakNet/RakNetTypes.h>
@@ -65,6 +66,35 @@ struct GameState
 void handleInputLocal(GameState* gs)
 {
 	//get text
+
+	//0x01 is because this is bitwise operations and the return value of getAsyncKeyState is in the same format
+	if(GetAsyncKeyState(VK_RETURN) & 0x01)
+	{
+		//printf("Enter key pressed \n"); //debug
+
+		char text[512];
+		//std::basic_istream::getline(std::cin, text); //Code does not like basic_istream will need to find something that works 
+		ChatMessage msg = {
+			//ID_TIMESTAMP,
+			//RakNet::GetTime(),
+			(char)ID_GAME_MESSAGE_1,
+			*text
+		};
+
+		//Add new msg to unhandled Clieny messages
+		gs->unhandeledClientMessages.push_back(msg);
+	}
+
+	//Right click
+	if (GetAsyncKeyState(VK_RBUTTON) & 0x01) 
+	{
+		for (unsigned int i = 0; i < gs->unhandeledClientMessages.size(); i++) 
+		{
+			//Print out stored messages
+			printf(gs->unhandeledClientMessages[i].msg);
+		}
+	}
+
 }
 
 void handleInputRemote(GameState* gs)
