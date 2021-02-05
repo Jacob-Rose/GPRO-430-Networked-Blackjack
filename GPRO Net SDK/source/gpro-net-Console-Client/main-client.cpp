@@ -24,18 +24,20 @@
 
 #include "gpro-net/gpro-net.h"
 
-
+//STD
 #include <stdio.h>
 #include <string.h>
 #include <vector>
 #include <future>
 #include <limits>
 #include <iostream>
-#include "RakNet/RakPeerInterface.h"
-#include "RakNet/MessageIdentifiers.h"
+
+//RakNet
+#include <RakNet/RakPeerInterface.h>
+#include <RakNet/MessageIdentifiers.h>
 #include <RakNet/RakNetTypes.h>
-#include "RakNet/BitStream.h"
-#include "RakNet/RakNetTypes.h"  // MessageID
+#include <RakNet/BitStream.h>
+#include <RakNet/RakNetTypes.h>  // MessageID
 #include <RakNet/GetTime.h>
 #include <RakNet/StringCompressor.h>
 
@@ -47,11 +49,13 @@ enum GameMessages
 #pragma pack (push)
 #pragma pack (1)
 
+//Note, i refuse to not use bitstreams as I prefer maintaining cross-platform and native support!
+//Thus, chatmessage is used on the client only, and is not inherintly network safe to send as a packet
 struct ChatMessage
 {
-	char timeID; //ID_TIMESTAMP
 	RakNet::Time time; //RakNet::GetTime()
-	char iD; //ID_GAME_MESSAGE_1
+	RakNet::SystemAddress sender;
+	//RakNet::SystemAddress target; //use RakNet::UNASSIGNED_SYSTEM_ADDRESS to make it public
 	std::string msg;
 };
 
@@ -75,62 +79,21 @@ static std::string getUserInput()
 
 void handleInputLocal(GameState* gs)
 {
-	//get text
-	//https://stackoverflow.com/questions/6171132/non-blocking-console-input-c
-
-	std::chrono::seconds timeout(5);
-	std::future<std::string> future = std::async(getUserInput);
-	if (future.wait_for(timeout) == std::future_status::ready)
-	{
-		std::string input = future.get();
-	}
-	else
-	{
-		//save cin and load it back after output
-		//rn we just erase it
-		//std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-	}
-
-
-	/*
 	//0x01 is because this is bitwise operations and the return value of getAsyncKeyState is in the same format
-	if(GetAsyncKeyState(VK_RETURN) & 0x01)
+	if(GetAsyncKeyState(VK_OEM_102) & 0x01) //good way to async open, uses backslash to start!
 	{
 		//printf("Enter key pressed \n"); //debug
-
-		char text[512];
-		//std::basic_istream::getline(std::cin, text); //Code does not like basic_istream will need to find something that works 
+		std::string text = getUserInput();
 		ChatMessage msg = {
-			//ID_TIMESTAMP,
-			//RakNet::GetTime(),
-			(char)ID_GAME_MESSAGE_1,
-			*text
+			RakNet::GetTime(),
+			gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()),
+			//RakNet::UNASSIGNED_SYSTEM_ADDRESS,
+			text.c_str()
 		};
 
 		//Add new msg to unhandled Clieny messages
 		gs->unhandeledClientMessages.push_back(msg);
 	}
-
-	//Right click
-	if (GetAsyncKeyState(VK_RBUTTON) & 0x01) 
-	{
-		for (unsigned int i = 0; i < gs->unhandeledClientMessages.size(); i++) 
-		{
-			//Print out stored messages
-			printf(gs->unhandeledClientMessages[i].msg);
-		}
-	}
-	
-
-
-
-	ChatMessage msg = {
-		ID_TIMESTAMP,
-		RakNet::GetTime(),
-		(char)ID_GAME_MESSAGE_1,
-		strtmp.c_str()
-	};
-	*/
 
 }
 
@@ -140,10 +103,12 @@ void handleInputRemote(GameState* gs)
 	//receive packets
 	for (packet = gs->peer->Receive(); packet; gs->peer->DeallocatePacket(packet), packet = gs->peer->Receive())
 	{
-		RakNet::Time timestamp;
 		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
 		bsIn.Read(msg);
+
+
+		RakNet::Time timestamp = RakNet::GetTime(); //as a safe backup, just in case its not set
 		if (msg == ID_TIMESTAMP)
 		{
 			//todo handle time
@@ -155,10 +120,10 @@ void handleInputRemote(GameState* gs)
 		switch (msg)
 		{
 		case ID_REMOTE_DISCONNECTION_NOTIFICATION:
-			printf("Another client has disconnected.\n");
+			printf("Our client disconnected from the server.\n");
 			break;
 		case ID_REMOTE_CONNECTION_LOST:
-			printf("Another client has lost the connection.\n");
+			printf("Our client connection to the server has been lost.\n");
 			break;
 		case ID_REMOTE_NEW_INCOMING_CONNECTION:
 			printf("Another client has connected.\n");
@@ -166,16 +131,12 @@ void handleInputRemote(GameState* gs)
 		case ID_CONNECTION_REQUEST_ACCEPTED:
 		{
 			printf("Our connection request has been accepted.\n");
-			
-			// Use a BitStream to write a custom user message
-			// Bitstreams are easier to use than sending casted structures, and handle endian swapping automatically
-			RakNet::BitStream bsOut;
-			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			bsOut.Write(RakNet::GetTime());
-			bsOut.Write((RakNet::MessageID)ID_GAME_MESSAGE_1);
-			bsOut.Write(RakNet::RakString( "Hello, I have Joined!"));
-			gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
-
+			ChatMessage msg = {
+				timestamp,
+				gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()),
+				"I have joined!"
+			};
+			gs->unhandeledClientMessages.push_back(msg); //we need to send this out now!
 		}
 		case ID_NEW_INCOMING_CONNECTION:
 			printf("A connection is incoming.\n");
@@ -193,7 +154,12 @@ void handleInputRemote(GameState* gs)
 		{
 			RakNet::RakString rs;
 			bsIn.Read(rs);
-			printf("%s\n", rs.C_String());
+			ChatMessage msg = {
+				timestamp,
+				packet->systemAddress,
+				(std::string)rs
+			};
+			gs->unhandeledRemoteMessages.push_back(msg);
 		}
 		break;
 		default:
@@ -209,14 +175,30 @@ void handleUpdate(GameState* gs)
 	
 }
 
+//Note: we dont use const here as we move the message from unhandeled to handled.
 void handleOutputRemote(const GameState* gs)
 {
 	//send all input messages from player
+	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++)
+	{
+		RakNet::BitStream bsOut;
+		bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+		bsOut.Write(gs->unhandeledClientMessages[i].time);
+		bsOut.Write((RakNet::MessageID)ID_GAME_MESSAGE_1);
+		bsOut.Write(RakNet::RakString(gs->unhandeledClientMessages[i].msg.c_str()));
+		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, false);
+		gs->messagesHandled.push_back(gs->unhandeledClientMessages[i]);
+	}
+	
+	gs->unhandeledClientMessages.clear();
+
+
 }
 
 void handleOutputLocal(const GameState* gs)
 {
 	//output all messages
+	system('clr'); //first clear then output all messages
 }
 
 int main(void)
