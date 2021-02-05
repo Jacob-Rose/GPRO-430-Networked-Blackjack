@@ -31,6 +31,7 @@
 #include <future>
 #include <limits>
 #include <iostream>
+#include <list>
 
 //RakNet
 #include <RakNet/RakPeerInterface.h>
@@ -40,6 +41,8 @@
 #include <RakNet/RakNetTypes.h>  // MessageID
 #include <RakNet/GetTime.h>
 #include <RakNet/StringCompressor.h>
+
+#define MAX_MESSAGES_TO_STORE 10
 
 enum GameMessages
 {
@@ -64,7 +67,7 @@ struct ChatMessage
 struct GameState
 {
 	RakNet::RakPeerInterface* peer;
-	std::vector<ChatMessage> messagesHandled;
+	std::list<ChatMessage> messageCache; //more optimized here to use a linked list
 	std::vector<ChatMessage> unhandeledClientMessages;
 	std::vector<ChatMessage> unhandeledRemoteMessages;
 };
@@ -171,12 +174,31 @@ void handleInputRemote(GameState* gs)
 
 void handleUpdate(GameState* gs)
 {
-	//update state of everything
-	
+	for (int i = 0; i < gs->unhandeledRemoteMessages.size(); i++)
+	{
+		//add to message cache
+		gs->messageCache.push_back(gs->unhandeledRemoteMessages[i]);
+	}
+	gs->unhandeledRemoteMessages.clear();
+
+
+	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++) 
+	{
+		gs->messageCache.push_back(gs->unhandeledClientMessages[i]);
+	}
+	//we dont delete from unhandledClientMessages as that is used in the remote sending
+
+
+
+	for (int i = 0; i < gs->messageCache.size() - MAX_MESSAGES_TO_STORE; i++)
+	{
+		gs->messageCache.pop_front(); //just get rid of the old information
+	}
+
 }
 
 //Note: we dont use const here as we move the message from unhandeled to handled.
-void handleOutputRemote(const GameState* gs)
+void handleOutputRemote(GameState* gs)
 {
 	//send all input messages from player
 	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++)
@@ -187,18 +209,21 @@ void handleOutputRemote(const GameState* gs)
 		bsOut.Write((RakNet::MessageID)ID_GAME_MESSAGE_1);
 		bsOut.Write(RakNet::RakString(gs->unhandeledClientMessages[i].msg.c_str()));
 		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, false);
-		gs->messagesHandled.push_back(gs->unhandeledClientMessages[i]);
 	}
-	
 	gs->unhandeledClientMessages.clear();
-
 
 }
 
 void handleOutputLocal(const GameState* gs)
 {
 	//output all messages
-	system('clr'); //first clear then output all messages
+	system("clr"); //first clear then output all messages
+	//reprint all messages from message cache
+
+	for (std::list<ChatMessage>::const_iterator it = (gs->messageCache.begin()); it != gs->messageCache.end(); ++it)
+	{
+		std::cout << it->msg;
+	}
 }
 
 int main(void)
