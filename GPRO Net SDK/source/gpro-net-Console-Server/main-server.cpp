@@ -28,6 +28,7 @@
 #include <future>
 #include <limits>
 #include <iostream>
+#include <fstream>
 #include <list>
 #include <map>
 
@@ -49,6 +50,7 @@ struct ServerState
 
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
+
 };
 
 void handleInput(ServerState* ss) 
@@ -105,9 +107,15 @@ void handleInput(ServerState* ss)
 				msgStr.C_String()
 			};
 			
+			std::string saveFilePath = "ServerMessageCache.txt";
+
+			std::ofstream msgSaver(saveFilePath);
+
+			msgSaver << msgStr;
+			msgSaver.close();
 			//Save message to file
 			//output message
-
+			
 
 			//Broadcast Message To Everyone (except one who sent it)
 			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
@@ -149,6 +157,10 @@ void handleOutput(ServerState* ss)
 	
 }
 
+void saveMessages(ServerState* ss)
+{
+
+}
 
 
 int main(void)
