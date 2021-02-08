@@ -176,6 +176,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\gpro-net\gpro-net.h" />
+    <ClInclude Include="..\..\..\source\gpro-net\shared-net.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\source\gpro-net\gpro-net.c" />

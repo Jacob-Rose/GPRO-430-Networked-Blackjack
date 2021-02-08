@@ -32,6 +32,7 @@
 #include <limits>
 #include <iostream>
 #include <list>
+#include <map>
 
 //RakNet
 #include <RakNet/RakPeerInterface.h>
@@ -42,34 +43,28 @@
 #include <RakNet/GetTime.h>
 #include <RakNet/StringCompressor.h>
 
+#include "gpro-net/shared-net.h"
+
 #define MAX_MESSAGES_TO_STORE 10
 
-enum GameMessages
-{
-	ID_GAME_MESSAGE_1 = ID_USER_PACKET_ENUM + 1
-};
 
-#pragma pack (push)
-#pragma pack (1)
 
-//Note, i refuse to not use bitstreams as I prefer maintaining cross-platform and native support!
-//Thus, chatmessage is used on the client only, and is not inherintly network safe to send as a packet
-struct ChatMessage
-{
-	RakNet::Time time; //RakNet::GetTime()
-	RakNet::SystemAddress sender;
-	//RakNet::SystemAddress target; //use RakNet::UNASSIGNED_SYSTEM_ADDRESS to make it public
-	std::string msg;
-};
-
-#pragma pack (pop)
 
 struct GameState
 {
 	RakNet::RakPeerInterface* peer;
+	std::list<ChatMessage> unprintedMessageCache;
 	std::list<ChatMessage> messageCache; //more optimized here to use a linked list
 	std::vector<ChatMessage> unhandeledClientMessages;
 	std::vector<ChatMessage> unhandeledRemoteMessages;
+
+	//Server info
+	RakNet::SystemAddress m_ServerAddress;
+
+	//Client Info
+	std::string m_DisplayName;
+
+	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
 };
 
 static std::string getUserInput()
@@ -83,7 +78,7 @@ static std::string getUserInput()
 void handleInputLocal(GameState* gs)
 {
 	//0x01 is because this is bitwise operations and the return value of getAsyncKeyState is in the same format
-	if(GetAsyncKeyState(VK_OEM_102) & 0x01) //good way to async open, uses backslash to start!
+	if(GetAsyncKeyState(VK_LCONTROL)) //good way to async open, uses backslash to start!
 	{
 		//printf("Enter key pressed \n"); //debug
 		std::string text = getUserInput();
@@ -102,9 +97,8 @@ void handleInputLocal(GameState* gs)
 
 void handleInputRemote(GameState* gs)
 {
-	RakNet::Packet* packet;
 	//receive packets
-	for (packet = gs->peer->Receive(); packet; gs->peer->DeallocatePacket(packet), packet = gs->peer->Receive())
+	for (RakNet::Packet* packet = gs->peer->Receive(); packet; gs->peer->DeallocatePacket(packet), packet = gs->peer->Receive())
 	{
 		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
@@ -134,13 +128,17 @@ void handleInputRemote(GameState* gs)
 		case ID_CONNECTION_REQUEST_ACCEPTED:
 		{
 			printf("Our connection request has been accepted.\n");
-			ChatMessage msg = {
-				timestamp,
-				gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()),
-				"I have joined!"
-			};
-			gs->unhandeledClientMessages.push_back(msg); //we need to send this out now!
+			RakNet::BitStream bsOut;
+
+			//Send Display Name First
+			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+			bsOut.Write(RakNet::GetTime());
+			bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
+			bsOut.Write(gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()));
+			bsOut.Write(RakNet::RakString(gs->m_DisplayName.c_str()));
 		}
+		break;
+
 		case ID_NEW_INCOMING_CONNECTION:
 			printf("A connection is incoming.\n");
 			break;
@@ -153,16 +151,30 @@ void handleInputRemote(GameState* gs)
 		case ID_CONNECTION_LOST:
 			printf("Connection lost.\n");
 			break;
-		case ID_GAME_MESSAGE_1:
+		case ID_CHAT_MESSAGE:
 		{
-			RakNet::RakString rs;
-			bsIn.Read(rs);
+			RakNet::SystemAddress sender;
+			RakNet::RakString msgStr;
+
+			bsIn.Read(sender);
+			bsIn.Read(msgStr);
 			ChatMessage msg = {
 				timestamp,
-				packet->systemAddress,
-				(std::string)rs
+				sender,
+				msgStr.C_String(),
 			};
 			gs->unhandeledRemoteMessages.push_back(msg);
+		}
+		break;
+		case ID_DISPLAY_NAME_UPDATED:
+		{
+			RakNet::SystemAddress sender;
+			RakNet::RakString displayName;
+
+			bsIn.Read(sender);
+			bsIn.Read(displayName);
+
+			gs->m_DisplayNames[sender] = displayName.C_String();
 		}
 		break;
 		default:
@@ -174,27 +186,20 @@ void handleInputRemote(GameState* gs)
 
 void handleUpdate(GameState* gs)
 {
+	gs->unprintedMessageCache.clear();
 	for (int i = 0; i < gs->unhandeledRemoteMessages.size(); i++)
 	{
 		//add to message cache
-		gs->messageCache.push_back(gs->unhandeledRemoteMessages[i]);
+		gs->unprintedMessageCache.push_back(gs->unhandeledRemoteMessages[i]);
 	}
 	gs->unhandeledRemoteMessages.clear();
 
 
 	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++) 
 	{
-		gs->messageCache.push_back(gs->unhandeledClientMessages[i]);
+		gs->unprintedMessageCache.push_back(gs->unhandeledClientMessages[i]);
 	}
 	//we dont delete from unhandledClientMessages as that is used in the remote sending
-
-
-
-	for (int i = 0; i < gs->messageCache.size() - MAX_MESSAGES_TO_STORE; i++)
-	{
-		gs->messageCache.pop_front(); //just get rid of the old information
-	}
-
 }
 
 //Note: we dont use const here as we move the message from unhandeled to handled.
@@ -204,11 +209,16 @@ void handleOutputRemote(GameState* gs)
 	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++)
 	{
 		RakNet::BitStream bsOut;
+
+		//Timestamp Message
 		bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
 		bsOut.Write(gs->unhandeledClientMessages[i].time);
-		bsOut.Write((RakNet::MessageID)ID_GAME_MESSAGE_1);
+
+
+		bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
 		bsOut.Write(RakNet::RakString(gs->unhandeledClientMessages[i].msg.c_str()));
-		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, false);
+
+		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, gs->m_ServerAddress, false);
 	}
 	gs->unhandeledClientMessages.clear();
 
@@ -217,10 +227,9 @@ void handleOutputRemote(GameState* gs)
 void handleOutputLocal(const GameState* gs)
 {
 	//output all messages
-	system("clr"); //first clear then output all messages
 	//reprint all messages from message cache
 
-	for (std::list<ChatMessage>::const_iterator it = (gs->messageCache.begin()); it != gs->messageCache.end(); ++it)
+	for (std::list<ChatMessage>::const_iterator it = (gs->unprintedMessageCache.begin()); it != gs->unprintedMessageCache.end(); ++it)
 	{
 		std::cout << it->msg;
 	}
@@ -228,18 +237,45 @@ void handleOutputLocal(const GameState* gs)
 
 int main(void)
 {
-	const unsigned short SERVER_PORT = 7777;
-	const char SERVER_IP[] = "172.16.2.57";
+	const bool debug = true; //for us
+
+
 
 	GameState gs[1] = { 0 };
 
-	gs->peer = RakNet::RakPeerInterface::GetInstance();
-	
+	const unsigned short SERVER_PORT = 7777;
+	const char* SERVER_IP = "172.24.2.60"; //update every time
 
+	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
+
+
+	std::string serverIp;
+	if (!debug)
+	{
+		
+		printf("Enter Display Name for server: ");
+		gs->m_DisplayName = getUserInput();
+
+		
+		printf("Enter IP Address for server: ");
+		serverIp = getUserInput();
+	}
+	else
+	{
+		serverIp = SERVER_IP;
+	}
+	
 	RakNet::SocketDescriptor sd;
 	gs->peer->Startup(1, &sd, 1);
 	gs->peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
-	printf("Starting the client");
+
+
+	if (debug)
+	{
+		gs->m_DisplayName = std::string(gs->peer->GetLocalIP(0));
+	}
+
+	gs->m_ServerAddress = gs->peer->GetSystemAddressFromIndex(0);
 
 	while (1)
 	{
