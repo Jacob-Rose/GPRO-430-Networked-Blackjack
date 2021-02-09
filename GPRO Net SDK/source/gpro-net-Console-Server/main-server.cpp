@@ -49,7 +49,7 @@ struct ServerState
 	std::vector<ChatMessage> messageCache;
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
-	std::string saveFilePath = "ServerMessageCache.txt";
+	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works
 	std::ofstream msgSaver;
 };
 
@@ -60,6 +60,7 @@ void handleInput(ServerState* ss)
 	{
 		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
+		RakNet::BitStream bsOut;
 		bsIn.Read(msg);
 
 		RakNet::Time timestamp = NULL;
@@ -93,9 +94,19 @@ void handleInput(ServerState* ss)
 			//todo remove display name and relay to clients
 			break;
 		case ID_CONNECTION_LOST:
+		{
 			printf("A client lost the connection.\n");
+
+			RakNet::SystemAddress RnAddress;
+			bsIn.Read(RnAddress);
+			if (RnAddress == packet->systemAddress) //make sure the client is changing their name only
+			{
+				ss->m_DisplayNames[packet->systemAddress] = "";//probably not a great solution but it will clear the name
+			}
+
 			//todo remove display name and relay to clients
 			break;
+		}
 		case ID_CHAT_MESSAGE:
 		{
 			RakNet::RakString msgStr;
@@ -130,7 +141,6 @@ void handleInput(ServerState* ss)
 			}
 			
 			//Broadcast Message To Everyone (except one who sent it)
-			printf("we try to message back");
 			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
 			ss->peer->Send(&untamperedBS, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
 			
@@ -173,13 +183,20 @@ int main(void)
 	printf("Starting the server.\n");
 
 	//test load
-	/* //still in progress
+	//still in progress
 	std::ifstream msgLoader(ss->saveFilePath);
 	if (msgLoader) 
 	{
-		msgLoader 
+		printf("msg loader exists");
+		int counter = 0;
+		char holder[512];
+		while (msgLoader.read(holder, sizeof(holder)))
+		{
+			printf("How many times are we here");
+			printf(holder); //not sure whats wrong here no messages get printed 
+		}		
 	}
-	*/
+	msgLoader.close();
 	// We need to let the server accept incoming connections from the clients
 	ss->msgSaver = std::ofstream(ss->saveFilePath); // this is probably not the best way to handle this but it functions
 

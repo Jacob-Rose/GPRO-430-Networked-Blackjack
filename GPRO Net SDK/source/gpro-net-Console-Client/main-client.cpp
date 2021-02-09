@@ -102,6 +102,7 @@ void handleInputRemote(GameState* gs)
 	{
 		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
+		RakNet::BitStream bsOut;
 		bsIn.Read(msg);
 
 
@@ -128,7 +129,7 @@ void handleInputRemote(GameState* gs)
 		case ID_CONNECTION_REQUEST_ACCEPTED:
 		{
 			printf("Our connection request has been accepted.\n");
-			RakNet::BitStream bsOut;
+			//RakNet::BitStream bsOut; moved to the top of this loop
 
 			//Send Display Name First
 			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
@@ -149,7 +150,12 @@ void handleInputRemote(GameState* gs)
 			printf("We have been disconnected.\n");
 			break;
 		case ID_CONNECTION_LOST:
-			printf("Connection lost.\n");
+			printf("Connection lost.\n");			
+			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+			bsOut.Write(RakNet::GetTime());
+			bsOut.Write((RakNet::MessageID)ID_CONNECTION_LOST);
+			bsOut.Write(gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()));
+			//bsOut.Write(RakNet::RakString(gs->m_DisplayName.c_str())); I dont think the server needs this
 			break;
 		case ID_CHAT_MESSAGE:
 		{
@@ -245,7 +251,7 @@ int main(void)
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.64"; //update every time
+	const char* SERVER_IP = "172.16.2.59"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 
