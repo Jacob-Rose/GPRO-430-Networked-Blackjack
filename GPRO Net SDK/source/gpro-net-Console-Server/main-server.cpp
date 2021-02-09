@@ -48,9 +48,9 @@ struct ServerState
 	RakNet::RakPeerInterface* peer;
 	std::vector<ChatMessage> messageCache;
 
-
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
-
+	std::string saveFilePath = "ServerMessageCache.txt";
+	std::ofstream msgSaver;
 };
 
 void handleInput(ServerState* ss) 
@@ -61,7 +61,6 @@ void handleInput(ServerState* ss)
 		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
 		bsIn.Read(msg);
-
 
 		RakNet::Time timestamp = NULL;
 		if (msg == ID_TIMESTAMP)
@@ -106,16 +105,11 @@ void handleInput(ServerState* ss)
 				packet->systemAddress,
 				msgStr.C_String()
 			};
-			
-			std::string saveFilePath = "ServerMessageCache.txt";
-
-			std::ofstream msgSaver(saveFilePath);
-
-			msgSaver << msgStr;
-			msgSaver.close();
-			//Save message to file
-			//output message
-			
+			//Save to file set in the server State struct
+			 
+			ss->msgSaver << msgStr;
+			ss->msgSaver << std::endl; //each message on its own line
+			//output message			
 
 			//Broadcast Message To Everyone (except one who sent it)
 			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
@@ -134,10 +128,12 @@ void handleInput(ServerState* ss)
 			{
 				ss->m_DisplayNames[packet->systemAddress] = displayName.C_String();
 			}
-
+			
 			//Broadcast Message To Everyone (except one who sent it)
+			printf("we try to message back");
 			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
 			ss->peer->Send(&untamperedBS, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
+			
 		}
 		break;
 		default:
@@ -175,8 +171,17 @@ int main(void)
 	ss->peer->Startup(MAX_CLIENTS, &sd, 1);
 	ss->peer->SetMaximumIncomingConnections(MAX_CLIENTS);
 	printf("Starting the server.\n");
-	// We need to let the server accept incoming connections from the clients
 
+	//test load
+	/* //still in progress
+	std::ifstream msgLoader(ss->saveFilePath);
+	if (msgLoader) 
+	{
+		msgLoader 
+	}
+	*/
+	// We need to let the server accept incoming connections from the clients
+	ss->msgSaver = std::ofstream(ss->saveFilePath); // this is probably not the best way to handle this but it functions
 
 	while (1)
 	{
@@ -188,7 +193,7 @@ int main(void)
 		handleOutput(ss);
 	}
 
-
+	ss->msgSaver.close();
 	RakNet::RakPeerInterface::DestroyInstance(ss->peer);
 
 	return 0;

@@ -218,7 +218,8 @@ void handleOutputRemote(GameState* gs)
 		bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
 		bsOut.Write(RakNet::RakString(gs->unhandeledClientMessages[i].msg.c_str()));
 
-		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, gs->m_ServerAddress, false);
+		
+		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);//gs->m_ServerAddress, false); //For some reason this is not correct so as a fix to just test my server changes im broadcasting to all
 	}
 	gs->unhandeledClientMessages.clear();
 
@@ -244,7 +245,7 @@ int main(void)
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.24.2.60"; //update every time
+	const char* SERVER_IP = "172.16.2.64"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 
