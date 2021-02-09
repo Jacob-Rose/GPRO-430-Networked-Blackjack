@@ -251,7 +251,7 @@ int main(void)
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.59"; //update every time
+	const char* SERVER_IP = "172.16.2.194"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 

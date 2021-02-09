@@ -163,12 +163,6 @@ void handleOutput(ServerState* ss)
 	
 }
 
-void saveMessages(ServerState* ss)
-{
-
-}
-
-
 int main(void)
 {
 	const unsigned short SERVER_PORT = 7777;
@@ -183,22 +177,21 @@ int main(void)
 	printf("Starting the server.\n");
 
 	//test load
-	//still in progress
 	std::ifstream msgLoader(ss->saveFilePath);
 	if (msgLoader) 
 	{
 		printf("msg loader exists");
 		int counter = 0;
-		char holder[512];
-		while (msgLoader.read(holder, sizeof(holder)))
+		std::string loadString;
+		while (std::getline(msgLoader, loadString))
 		{
-			printf("How many times are we here");
-			printf(holder); //not sure whats wrong here no messages get printed 
+			printf(loadString.c_str());
+			printf("\n");
 		}		
 	}
 	msgLoader.close();
 	// We need to let the server accept incoming connections from the clients
-	ss->msgSaver = std::ofstream(ss->saveFilePath); // this is probably not the best way to handle this but it functions
+	ss->msgSaver = std::ofstream(ss->saveFilePath); // this is probably not the best way to handle this but it function
 
 	while (1)
 	{
