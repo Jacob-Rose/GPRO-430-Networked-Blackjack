@@ -140,14 +140,7 @@ void handleInputRemote(GameState* gs)
 
 			//we are officially connected, save stuff here
 			gs->m_MyAddress = gs->peer->GetInternalID();
-			if (gs->m_Debug)
-			{
-				gs->m_DisplayNames[gs->m_MyAddress] = std::string(gs->peer->GetLocalIP(0));
-			}
-			else
-			{
-				gs->m_DisplayNames[gs->m_MyAddress] = gs->m_LocalDisplayName;
-			}
+			gs->m_DisplayNames[gs->m_MyAddress] = gs->m_LocalDisplayName;
 			gs->m_ServerAddress = packet->systemAddress;
 
 			//This needs to be handled better this was just for debug purposes
@@ -289,6 +282,7 @@ int main(void)
 	else
 	{
 		serverIp = SERVER_IP;
+		gs->m_LocalDisplayName = "D Client";
 	}
 	
 	RakNet::SocketDescriptor sd;
