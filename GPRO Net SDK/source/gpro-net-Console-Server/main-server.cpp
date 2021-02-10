@@ -77,17 +77,10 @@ void handleInput(ServerState* ss)
 
 		switch (msg)
 		{
-		case ID_REMOTE_DISCONNECTION_NOTIFICATION:
-			printf("Another client has disconnected.\n");
-			break;
-		case ID_REMOTE_CONNECTION_LOST:
-			printf("Another client has lost the connection.\n");
-			break;
+		case ID_NEW_INCOMING_CONNECTION:
 		case ID_REMOTE_NEW_INCOMING_CONNECTION:
 		{
 			printf("A client has connected.\n");
-			//bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			//bsOut.Write(RakNet::GetTime());
 
 			//Get our display name and create a chatmessage
 			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
@@ -98,64 +91,36 @@ void handleInput(ServerState* ss)
 				msgStr.C_String()
 			};
 
-			//write message to bit stream let somewhere else handle this
-			//bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-			//bsOut.Write(RakNet::RakString(msgStr));
 
-			ss->unhandledBroadcastMessages.push_back(msg);
-			//Todo, send them all the display names currently active
-			break;
-		}
-		case ID_NEW_INCOMING_CONNECTION:
-			printf("A connection is incoming.\n");
-			break;
-		case ID_NO_FREE_INCOMING_CONNECTIONS:
-			printf("The server is full.\n");
-			break;
-		case ID_DISCONNECTION_NOTIFICATION: 
-		{
+			//ss->unhandledBroadcastMessages.push_back(msg);
 
-			printf("A client has disconnected.\n");
-			//Create new time stamp for bit stream to be sent
-			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			bsOut.Write(RakNet::GetTime());
+			//send them the display name list
+			
+			for (std::map<RakNet::SystemAddress, std::string>::iterator it = ss->m_DisplayNames.begin(); it != ss->m_DisplayNames.end(); ++it)
+			{
+				bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+				bsOut.Write(RakNet::GetTime());
+				bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
+				bsOut.Write(it->first);
+				bsOut.Write(it->second);
+				ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
+			}
+			
 
-			//Get our display name and create a chatmessage
-			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
-
-			ChatMessage msg{
-				timestamp,
-				packet->systemAddress,
-				msgStr.C_String()
-			};
-
-			//write message to bit stream
-			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-			bsOut.Write(RakNet::RakString(msgStr));
-
-
-			//Erase our display name from the map
-			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
-
-			//Send the data
-			ss->unhandledBroadcastMessages.push_back(msg);
-			//todo remove display name and relay to clients
 			break;
 		}
 		case ID_CONNECTION_LOST:
+		case ID_DISCONNECTION_NOTIFICATION:
+		case ID_REMOTE_DISCONNECTION_NOTIFICATION:
+		case ID_REMOTE_CONNECTION_LOST:
 		{
-			printf("A client lost the connection.\n");
-
-			// read in orignal sender address
-			//RakNet::SystemAddress RnAddress;		
-			//bsIn.Read(RnAddress);
-			
+			printf("A client has left.\n");
 			//Create new time stamp for bit stream to be sent
 			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
 			bsOut.Write(RakNet::GetTime());
-		
+
 			//Get our display name and create a chatmessage
-			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
+			RakNet::RakString msgStr = (ss->m_DisplayNames[packet->systemAddress] + " disconnected.").c_str();
 
 			ChatMessage msg{
 				timestamp,
@@ -164,19 +129,23 @@ void handleInput(ServerState* ss)
 			};
 
 			//write message to bit stream
-			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-			bsOut.Write(RakNet::RakString(msgStr));	
+			bsOut.Write((RakNet::MessageID)ID_REMOTE_CONNECTION_LOST);
+			bsOut.Write(packet->systemAddress);
 
-			
+			ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
+
+
 			//Erase our display name from the map
 			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
 
-			//Send the data
+			//Save for later sending
 			ss->unhandledBroadcastMessages.push_back(msg);
-			
-			//todo remove display name and relay to clients
 			break;
 		}
+		
+		case ID_NO_FREE_INCOMING_CONNECTIONS:
+			printf("The server is full.\n");
+			break;
 		case ID_CHAT_MESSAGE:
 		{
 			RakNet::RakString msgStr;
@@ -190,6 +159,8 @@ void handleInput(ServerState* ss)
 			 
 			ss->msgSaver << msgStr;
 			ss->msgSaver << std::endl; //each message on its own line			
+
+			std::cout << ss->m_DisplayNames.find(packet->systemAddress)->second << ": " << msgStr << std::endl;
 
 			//Broadcast Message To Everyone (except one who sent it)
 			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
@@ -246,6 +217,7 @@ void handleOutput(ServerState* ss)
 
 
 		bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+		bsOut.Write(ss->unsentMessages[i].sender);
 		bsOut.Write(RakNet::RakString(ss->unsentMessages[i].msg.c_str()));
 
 
@@ -268,6 +240,7 @@ int main(void)
 	printf("Starting the server.\n");
 
 	//test load IMPORTANT NOTE This creates a txt file on the VDI which gets wiped on startup
+	/*
 	std::ifstream msgLoader(ss->saveFilePath);
 	if (msgLoader) 
 	{
@@ -280,6 +253,7 @@ int main(void)
 		}		
 	}
 	msgLoader.close();
+	*/
 	// We need to let the server accept incoming connections from the clients
 	ss->msgSaver = std::ofstream(ss->saveFilePath); // this is probably not the best way to handle this but it function
 

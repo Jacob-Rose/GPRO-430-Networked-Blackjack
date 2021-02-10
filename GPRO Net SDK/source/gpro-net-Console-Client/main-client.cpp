@@ -60,17 +60,19 @@ struct GameState
 
 	//Server info
 	RakNet::SystemAddress m_ServerAddress;
-
-	//Client Info
-	std::string m_DisplayName;
+	RakNet::SystemAddress m_MyAddress;
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
+	std::string m_LocalDisplayName;
+
+
+	const bool m_Debug = true;
 };
 
 static std::string getUserInput()
 {
 	std::string input;
-	std::cin >> input;
+	std::getline(std::cin, input);
 	return input;
 }
 
@@ -84,8 +86,7 @@ void handleInputLocal(GameState* gs)
 		std::string text = getUserInput();
 		ChatMessage msg = {
 			RakNet::GetTime(),
-			gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()),
-			//RakNet::UNASSIGNED_SYSTEM_ADDRESS,
+			gs->m_MyAddress,
 			text.c_str()
 		};
 
@@ -114,60 +115,72 @@ void handleInputRemote(GameState* gs)
 			bsIn.Read(msg);//now we update to show the real message
 		}
 
+		//used in switch
+		RakNet::SystemAddress address;
+		RakNet::RakString msgStr;
 
 		switch (msg)
 		{
 		case ID_REMOTE_DISCONNECTION_NOTIFICATION:
-			printf("Our client disconnected from the server.\n");
-			break;
 		case ID_REMOTE_CONNECTION_LOST:
-			printf("Our client connection to the server has been lost.\n");
+			
+			bsOut.Read(address);
+
+			printf((gs->m_DisplayNames.find(address)->second + " has disconnected.").c_str());
+
+			gs->m_DisplayNames.erase(gs->m_DisplayNames.find(address));
 			break;
 		case ID_REMOTE_NEW_INCOMING_CONNECTION:
-			printf("Another client has connected.\n");
+			//we dont do anything cause their name will send automatically and be handeled in ID_DISPLAY_NAME_UPDATED event
 			break;
 		case ID_CONNECTION_REQUEST_ACCEPTED:
 		{
 			printf("Our connection request has been accepted.\n");
 			//RakNet::BitStream bsOut; moved to the top of this loop
 
+			//we are officially connected, save stuff here
+			gs->m_MyAddress = gs->peer->GetInternalID();
+			if (gs->m_Debug)
+			{
+				gs->m_DisplayNames[gs->m_MyAddress] = std::string(gs->peer->GetLocalIP(0));
+			}
+			else
+			{
+				gs->m_DisplayNames[gs->m_MyAddress] = gs->m_LocalDisplayName;
+			}
+			gs->m_ServerAddress = packet->systemAddress;
+
 			//This needs to be handled better this was just for debug purposes
 			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
 			bsOut.Write(RakNet::GetTime());
 			bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
-			bsOut.Write(gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()));
-			bsOut.Write(RakNet::RakString(gs->m_DisplayName.c_str()));
-			gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
-		}
-		break;
-
-		case ID_NEW_INCOMING_CONNECTION:
-			printf("A connection is incoming.\n");
+			bsOut.Write(gs->m_MyAddress);
+			bsOut.Write(RakNet::RakString(gs->m_DisplayNames.find(gs->m_MyAddress)->second.c_str()));
+			gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
 			break;
+		}
 		case ID_NO_FREE_INCOMING_CONNECTIONS:
-			printf("The server is full.\n");
+			printf("The server is full, cannot join.\n");
 			break;
 		case ID_DISCONNECTION_NOTIFICATION:
-			printf("We have been disconnected.\n");
+			printf("We have disconnected.\n");
 			break;
 		case ID_CONNECTION_LOST:
-			printf("A Client has lost connection.\n");	
+			printf("We lost connection.\n");	
 			break;
 		case ID_CHAT_MESSAGE:
 		{
-			RakNet::SystemAddress sender;
-			RakNet::RakString msgStr;
-
-			bsIn.Read(sender);
+			bsIn.Read(address);
 			bsIn.Read(msgStr);
 			ChatMessage msg = {
 				timestamp,
-				sender,
+				address,
 				msgStr.C_String(),
 			};
 			gs->unhandeledRemoteMessages.push_back(msg);
+			break;
 		}
-		break;
+
 		case ID_DISPLAY_NAME_UPDATED:
 		{
 			RakNet::SystemAddress sender;
@@ -221,7 +234,7 @@ void handleOutputRemote(GameState* gs)
 		bsOut.Write(RakNet::RakString(gs->unhandeledClientMessages[i].msg.c_str()));
 
 		
-		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);//gs->m_ServerAddress, false); //For some reason this is not correct so as a fix to just test my server changes im broadcasting to all
+		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, gs->m_ServerAddress, false);//gs->m_ServerAddress, false); //For some reason this is not correct so as a fix to just test my server changes im broadcasting to all
 	}
 	gs->unhandeledClientMessages.clear();
 
@@ -234,30 +247,40 @@ void handleOutputLocal(const GameState* gs)
 
 	for (std::list<ChatMessage>::const_iterator it = (gs->unprintedMessageCache.begin()); it != gs->unprintedMessageCache.end(); ++it)
 	{
-		std::cout << it->msg;
+		std::map<RakNet::SystemAddress, std::string>::const_iterator displayNameIt = gs->m_DisplayNames.find(it->sender);
+		std::string name;
+		if (displayNameIt != gs->m_DisplayNames.end())
+		{
+			name = displayNameIt->second;
+		}
+		else
+		{
+			name = it->sender.ToString();
+		}
+		std::cout << name << ": " << it->msg << std::endl;
 	}
 }
 
 int main(void)
 {
-	const bool debug = true; //for us
+	 //for us
 
 
 
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.61"; //update every time
+	const char* SERVER_IP = "172.16.2.60"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 
-
+	std::string displayName;
 	std::string serverIp;
-	if (!debug)
+	if (!gs->m_Debug)
 	{
 		
 		printf("Enter Display Name for server: ");
-		gs->m_DisplayName = getUserInput();
+		gs->m_LocalDisplayName = getUserInput();
 
 		
 		printf("Enter IP Address for server: ");
@@ -272,13 +295,6 @@ int main(void)
 	gs->peer->Startup(1, &sd, 1);
 	gs->peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
 
-
-	if (debug)
-	{
-		gs->m_DisplayName = std::string(gs->peer->GetLocalIP(0));
-	}
-
-	gs->m_ServerAddress = gs->peer->GetSystemAddressFromIndex(0); // This does not work for some reason it wont give me a proper address but its in the right location
 
 	while (1)
 	{
