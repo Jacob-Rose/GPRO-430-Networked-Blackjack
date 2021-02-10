@@ -137,6 +137,7 @@ void handleInputRemote(GameState* gs)
 			bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
 			bsOut.Write(gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()));
 			bsOut.Write(RakNet::RakString(gs->m_DisplayName.c_str()));
+			gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
 		}
 		break;
 
@@ -150,12 +151,7 @@ void handleInputRemote(GameState* gs)
 			printf("We have been disconnected.\n");
 			break;
 		case ID_CONNECTION_LOST:
-			printf("Connection lost.\n");			
-			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			bsOut.Write(RakNet::GetTime());
-			bsOut.Write((RakNet::MessageID)ID_CONNECTION_LOST);
-			bsOut.Write(gs->peer->GetSystemAddressFromGuid(gs->peer->GetMyGUID()));
-			//bsOut.Write(RakNet::RakString(gs->m_DisplayName.c_str())); I dont think the server needs this
+			printf("A Client has lost connection.\n");	
 			break;
 		case ID_CHAT_MESSAGE:
 		{
@@ -251,7 +247,7 @@ int main(void)
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.194"; //update every time
+	const char* SERVER_IP = "172.16.2.197"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 

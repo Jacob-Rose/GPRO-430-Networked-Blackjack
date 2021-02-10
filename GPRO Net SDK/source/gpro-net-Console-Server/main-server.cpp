@@ -48,6 +48,10 @@ struct ServerState
 	RakNet::RakPeerInterface* peer;
 	std::vector<ChatMessage> messageCache;
 
+
+	std::vector<ChatMessage> unsentMessages;
+	std::vector<ChatMessage> unhandledServerMessages;
+
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
 	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works
 	std::ofstream msgSaver;
@@ -80,9 +84,26 @@ void handleInput(ServerState* ss)
 			printf("Another client has lost the connection.\n");
 			break;
 		case ID_REMOTE_NEW_INCOMING_CONNECTION:
+		{
 			printf("A client has connected.\n");
+			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+			bsOut.Write(RakNet::GetTime());
+
+			//Get our display name and create a chatmessage
+			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
+
+			ChatMessage msg{
+				timestamp,
+				packet->systemAddress,
+				msgStr.C_String()
+			};
+
+			//write message to bit stream
+			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+			bsOut.Write(RakNet::RakString(msgStr));
 			//Todo, send them all the display names currently active
 			break;
+		}
 		case ID_NEW_INCOMING_CONNECTION:
 			printf("A connection is incoming.\n");
 			break;
@@ -97,13 +118,34 @@ void handleInput(ServerState* ss)
 		{
 			printf("A client lost the connection.\n");
 
-			RakNet::SystemAddress RnAddress;
-			bsIn.Read(RnAddress);
-			if (RnAddress == packet->systemAddress) //make sure the client is changing their name only
-			{
-				ss->m_DisplayNames[packet->systemAddress] = "";//probably not a great solution but it will clear the name
-			}
+			// read in orignal sender address
+			//RakNet::SystemAddress RnAddress;		
+			//bsIn.Read(RnAddress);
+			
+			//Create new time stamp for bit stream to be sent
+			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+			bsOut.Write(RakNet::GetTime());
+		
+			//Get our display name and create a chatmessage
+			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
 
+			ChatMessage msg{
+				timestamp,
+				packet->systemAddress,
+				msgStr.C_String()
+			};
+
+			//write message to bit stream
+			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+			bsOut.Write(RakNet::RakString(msgStr));	
+
+			
+			//Erase our display name from the map
+			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
+
+			//Send the data
+			ss->unhandledServerMessages.push_back(msg);
+			
 			//todo remove display name and relay to clients
 			break;
 		}
@@ -119,8 +161,7 @@ void handleInput(ServerState* ss)
 			//Save to file set in the server State struct
 			 
 			ss->msgSaver << msgStr;
-			ss->msgSaver << std::endl; //each message on its own line
-			//output message			
+			ss->msgSaver << std::endl; //each message on its own line			
 
 			//Broadcast Message To Everyone (except one who sent it)
 			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
@@ -156,11 +197,33 @@ void handleInput(ServerState* ss)
 void handleUpdate(ServerState* ss)
 {
 	
+	for (int i = 0; i < ss->unhandledServerMessages.size(); i++)
+	{
+		//add to message cache
+		ss->unsentMessages.push_back(ss->unhandledServerMessages[i]);
+	}
+	ss->unhandledServerMessages.clear();
+	
 }
 
 void handleOutput(ServerState* ss)
 {
-	
+	for (int i = 0; i < ss->unsentMessages.size(); i++)
+	{
+		RakNet::BitStream bsOut;
+
+		//Timestamp Message
+		bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+		bsOut.Write(ss->unsentMessages[i].time);
+
+
+		bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+		bsOut.Write(RakNet::RakString(ss->unsentMessages[i].msg.c_str()));
+
+
+		ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);//gs->m_ServerAddress, false); // For now I want it to send messages I have tried geting the correct address but no luck
+	}
+	ss->unsentMessages.clear();
 }
 
 int main(void)
@@ -180,7 +243,7 @@ int main(void)
 	std::ifstream msgLoader(ss->saveFilePath);
 	if (msgLoader) 
 	{
-		printf("msg loader exists");
+		//printf("msg loader exists");
 		int counter = 0;
 		std::string loadString;
 		while (std::getline(msgLoader, loadString))
