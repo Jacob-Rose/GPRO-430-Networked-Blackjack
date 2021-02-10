@@ -50,7 +50,7 @@ struct ServerState
 
 
 	std::vector<ChatMessage> unsentMessages;
-	std::vector<ChatMessage> unhandledServerMessages;
+	std::vector<ChatMessage> unhandledBroadcastMessages;
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
 	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works
@@ -86,6 +86,37 @@ void handleInput(ServerState* ss)
 		case ID_REMOTE_NEW_INCOMING_CONNECTION:
 		{
 			printf("A client has connected.\n");
+			//bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+			//bsOut.Write(RakNet::GetTime());
+
+			//Get our display name and create a chatmessage
+			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
+
+			ChatMessage msg{
+				timestamp,
+				packet->systemAddress,
+				msgStr.C_String()
+			};
+
+			//write message to bit stream let somewhere else handle this
+			//bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+			//bsOut.Write(RakNet::RakString(msgStr));
+
+			ss->unhandledBroadcastMessages.push_back(msg);
+			//Todo, send them all the display names currently active
+			break;
+		}
+		case ID_NEW_INCOMING_CONNECTION:
+			printf("A connection is incoming.\n");
+			break;
+		case ID_NO_FREE_INCOMING_CONNECTIONS:
+			printf("The server is full.\n");
+			break;
+		case ID_DISCONNECTION_NOTIFICATION: 
+		{
+
+			printf("A client has disconnected.\n");
+			//Create new time stamp for bit stream to be sent
 			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
 			bsOut.Write(RakNet::GetTime());
 
@@ -101,19 +132,16 @@ void handleInput(ServerState* ss)
 			//write message to bit stream
 			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
 			bsOut.Write(RakNet::RakString(msgStr));
-			//Todo, send them all the display names currently active
-			break;
-		}
-		case ID_NEW_INCOMING_CONNECTION:
-			printf("A connection is incoming.\n");
-			break;
-		case ID_NO_FREE_INCOMING_CONNECTIONS:
-			printf("The server is full.\n");
-			break;
-		case ID_DISCONNECTION_NOTIFICATION:
-			printf("A client has disconnected.\n");
+
+
+			//Erase our display name from the map
+			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
+
+			//Send the data
+			ss->unhandledBroadcastMessages.push_back(msg);
 			//todo remove display name and relay to clients
 			break;
+		}
 		case ID_CONNECTION_LOST:
 		{
 			printf("A client lost the connection.\n");
@@ -144,7 +172,7 @@ void handleInput(ServerState* ss)
 			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
 
 			//Send the data
-			ss->unhandledServerMessages.push_back(msg);
+			ss->unhandledBroadcastMessages.push_back(msg);
 			
 			//todo remove display name and relay to clients
 			break;
@@ -196,13 +224,13 @@ void handleInput(ServerState* ss)
 
 void handleUpdate(ServerState* ss)
 {
-	
-	for (int i = 0; i < ss->unhandledServerMessages.size(); i++)
+	//Same format as client messages
+	for (int i = 0; i < ss->unhandledBroadcastMessages.size(); i++)
 	{
 		//add to message cache
-		ss->unsentMessages.push_back(ss->unhandledServerMessages[i]);
+		ss->unsentMessages.push_back(ss->unhandledBroadcastMessages[i]);
 	}
-	ss->unhandledServerMessages.clear();
+	ss->unhandledBroadcastMessages.clear();
 	
 }
 
@@ -239,16 +267,15 @@ int main(void)
 	ss->peer->SetMaximumIncomingConnections(MAX_CLIENTS);
 	printf("Starting the server.\n");
 
-	//test load
+	//test load IMPORTANT NOTE This creates a txt file on the VDI which gets wiped on startup
 	std::ifstream msgLoader(ss->saveFilePath);
 	if (msgLoader) 
 	{
-		//printf("msg loader exists");
 		int counter = 0;
 		std::string loadString;
 		while (std::getline(msgLoader, loadString))
 		{
-			printf(loadString.c_str());
+			printf(loadString.c_str()); //Change this if we want to store the message and do more with it
 			printf("\n");
 		}		
 	}

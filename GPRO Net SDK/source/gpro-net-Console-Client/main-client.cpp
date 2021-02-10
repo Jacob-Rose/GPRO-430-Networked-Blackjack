@@ -131,7 +131,7 @@ void handleInputRemote(GameState* gs)
 			printf("Our connection request has been accepted.\n");
 			//RakNet::BitStream bsOut; moved to the top of this loop
 
-			//Send Display Name First
+			//This needs to be handled better this was just for debug purposes
 			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
 			bsOut.Write(RakNet::GetTime());
 			bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
@@ -247,7 +247,7 @@ int main(void)
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.197"; //update every time
+	const char* SERVER_IP = "172.16.2.61"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 
@@ -278,7 +278,7 @@ int main(void)
 		gs->m_DisplayName = std::string(gs->peer->GetLocalIP(0));
 	}
 
-	gs->m_ServerAddress = gs->peer->GetSystemAddressFromIndex(0);
+	gs->m_ServerAddress = gs->peer->GetSystemAddressFromIndex(0); // This does not work for some reason it wont give me a proper address but its in the right location
 
 	while (1)
 	{
