@@ -66,7 +66,7 @@ struct GameState
 	std::string m_LocalDisplayName;
 
 
-	const bool m_Debug = true;
+	const bool m_Debug = false;
 };
 
 static std::string getUserInput()
@@ -125,6 +125,7 @@ void handleInputRemote(GameState* gs)
 		case ID_REMOTE_CONNECTION_LOST:
 			
 			bsOut.Read(address);
+			//bsOut.
 
 			printf((gs->m_DisplayNames.find(address)->second + " has disconnected.").c_str());
 
@@ -202,11 +203,12 @@ void handleUpdate(GameState* gs)
 	}
 	gs->unhandeledRemoteMessages.clear();
 
-
+	
 	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++) 
 	{
 		gs->unprintedMessageCache.push_back(gs->unhandeledClientMessages[i]);
 	}
+	
 	//we dont delete from unhandledClientMessages as that is used in the remote sending
 }
 
@@ -263,7 +265,7 @@ int main(void)
 	GameState gs[1] = { 0 };
 
 	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.60"; //update every time
+	const char* SERVER_IP = "172.16.2.57"; //update every time
 
 	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 

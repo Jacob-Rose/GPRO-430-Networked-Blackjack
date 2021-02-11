@@ -85,7 +85,7 @@ void handleInput(ServerState* ss)
 			//Get our display name and create a chatmessage
 			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
 
-			ChatMessage msg{
+			ChatMessage cmsg{
 				timestamp,
 				packet->systemAddress,
 				msgStr.C_String()
@@ -102,7 +102,8 @@ void handleInput(ServerState* ss)
 				bsOut.Write(RakNet::GetTime());
 				bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
 				bsOut.Write(it->first);
-				bsOut.Write(it->second);
+				RakNet::RakString formatString = it->second.c_str();
+				bsOut.Write(formatString);
 				ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
 			}
 			
@@ -122,7 +123,7 @@ void handleInput(ServerState* ss)
 			//Get our display name and create a chatmessage
 			RakNet::RakString msgStr = (ss->m_DisplayNames[packet->systemAddress] + " disconnected.").c_str();
 
-			ChatMessage msg{
+			ChatMessage cmsg{
 				timestamp,
 				packet->systemAddress,
 				msgStr.C_String()
@@ -132,14 +133,14 @@ void handleInput(ServerState* ss)
 			bsOut.Write((RakNet::MessageID)ID_REMOTE_CONNECTION_LOST);
 			bsOut.Write(packet->systemAddress);
 
-			ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
+			ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
 
 
 			//Erase our display name from the map
 			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
 
 			//Save for later sending
-			ss->unhandledBroadcastMessages.push_back(msg);
+			ss->unhandledBroadcastMessages.push_back(cmsg);
 			break;
 		}
 		
@@ -148,23 +149,38 @@ void handleInput(ServerState* ss)
 			break;
 		case ID_CHAT_MESSAGE:
 		{
+			RakNet::BitStream bsOut;
 			RakNet::RakString msgStr;
 			bsIn.Read(msgStr);
-			ChatMessage msg{
+
+			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
+			bsOut.Write(RakNet::GetTime());
+
+			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+			bsOut.Write(packet->systemAddress); 
+			bsOut.Write(msgStr);
+
+			std::string temp = ss->m_DisplayNames.find(packet->systemAddress)->second + ": " + msgStr.C_String() + "\n";
+			msgStr.Set(temp.c_str());
+
+			ChatMessage cmsg{
 				timestamp,
 				packet->systemAddress,
 				msgStr.C_String()
 			};
 			//Save to file set in the server State struct
-			 
-			ss->msgSaver << msgStr;
-			ss->msgSaver << std::endl; //each message on its own line			
 
-			std::cout << ss->m_DisplayNames.find(packet->systemAddress)->second << ": " << msgStr << std::endl;
+			
+
+
+			ss->msgSaver << msgStr;
+			//ss->msgSaver << std::endl; //each message on its own line			
+
+			std::cout << msgStr;
 
 			//Broadcast Message To Everyone (except one who sent it)
-			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
-			ss->peer->Send(&untamperedBS, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
+			//RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
+			ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
 		}
 		break;
 		case ID_DISPLAY_NAME_UPDATED:
@@ -177,7 +193,7 @@ void handleInput(ServerState* ss)
 
 			if (sender == packet->systemAddress) //make sure the client is changing their name only
 			{
-				ss->m_DisplayNames[packet->systemAddress] = displayName.C_String();
+				ss->m_DisplayNames.find(packet->systemAddress)->second = displayName.C_String();
 			}
 			
 			//Broadcast Message To Everyone (except one who sent it)
