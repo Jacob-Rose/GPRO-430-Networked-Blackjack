@@ -5,29 +5,100 @@
 #include <RakNet/MessageIdentifiers.h>
 #include <RakNet/RakNetTypes.h>
 
+
+#include <RakNet/RakString.h>
+#include <RakNet/BitStream.h>
+#include <RakNet/GetTime.h>
+
+#include <memory>
+#include <vector>
 #include <string>
 
-enum GameMessages
+#include "gpro-net-gamestate.h"
+
+enum GameMessageID
 {
-	ID_CHAT_MESSAGE = ID_USER_PACKET_ENUM + 1,
-	ID_DISPLAY_NAME_UPDATED
+	ID_PACKAGED_PACKET = ID_USER_PACKET_ENUM + 1,
+	ID_DISPLAY_NAME_UPDATED,
+	ID_PLAYER_MOVE
+};
+
+class TimestampMessage;
+class PlayerMoveMessage;
+class DisplayNameChangeMessage;
+
+
+class NetworkMessage
+{
+protected:
+	const RakNet::MessageID m_MessageID;
+
+	NetworkMessage(RakNet::MessageID id) : m_MessageID(id) {}
+public:
+	virtual bool WritePacketBitstream(RakNet::BitStream* bs) = 0; 
+	virtual bool ReadPacketBitstream(RakNet::BitStream* bs) = 0; //all messages should assume the messageid has already been read in and the read index is moved past it
+
+
+	//We push back each message onto the msgQueue
+	//NOTE! All messages will be dynamically allocated
+	static void DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMessage*>& msgQueue);
+	static void CreatePacketHeader(RakNet::BitStream* bs, int msgCount);
+
+
+	//friend RakNet::BitStream& operator<<(RakNet::BitStream& bsp, NetworkMessage& msg);
+};
+
+//Used for messages that are more events that have no information tied to them, connecting, disconnect, all that jazz
+class NotificationMessage : public NetworkMessage
+{
+public:
+	NotificationMessage(RakNet::MessageID id) : NetworkMessage(id) { }
+
+	//these do nothing as the notification message stores the messageID and nothing more
+	bool WritePacketBitstream(RakNet::BitStream* bs) override { bs->Write(m_MessageID); }
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override {}
 };
 
 
-//Note, i refuse to not use bitstreams as I prefer maintaining cross-platform and native support!
-//Thus, chatmessage is used on the client only, and is not inherintly network safe to send as a packet
-struct ChatMessage
+//Holds the timestamp, may need to be moved to the packet header
+class TimestampMessage : public NetworkMessage
 {
-	RakNet::Time time; //RakNet::GetTime()
-	RakNet::SystemAddress sender;
-	std::string msg;
+	RakNet::Time m_Time;
 
-	/*
-	RakNet::BitStream getBitstream()
-	{
+public:
+	TimestampMessage() : NetworkMessage((RakNet::MessageID)ID_TIMESTAMP), m_Time(RakNet::GetTime()) { }
 
-	}
-	*/
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
+
+
+//Display Name Changed
+class DisplayNameChangeMessage : public NetworkMessage
+{
+	RakNet::SystemAddress m_Sender;
+	RakNet::RakString m_UpdatedDisplayName;
+
+public:
+	DisplayNameChangeMessage() : NetworkMessage((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED) { }
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
+
+//Holds all information about the player move
+class PlayerMoveMessage : public NetworkMessage
+{
+	RakNet::SystemAddress m_Player;
+	gpro_mancala_index m_MoveIndex;
+
+public:
+	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE) { }
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
 };
 
 

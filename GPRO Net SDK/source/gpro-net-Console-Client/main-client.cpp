@@ -52,21 +52,13 @@
 
 struct GameState
 {
-	RakNet::RakPeerInterface* peer;
-	std::list<ChatMessage> unprintedMessageCache;
-	std::list<ChatMessage> messageCache; //more optimized here to use a linked list
-	std::vector<ChatMessage> unhandeledClientMessages;
-	std::vector<ChatMessage> unhandeledRemoteMessages;
+	RakNet::RakPeerInterface* m_Peer;
 
-	//Server info
-	RakNet::SystemAddress m_ServerAddress;
-	RakNet::SystemAddress m_MyAddress;
+	std::vector<NetworkMessage*> m_ServerMessageQueue; //we directly read from the bitstreams and add to this. Note, delete event object with delete when done
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
-	std::string m_LocalDisplayName;
-
-
-	const bool m_Debug = false;
+	std::string m_LocalDisplayName; //saved and added to m_DisplayName on ID_CONNECTION_REQUEST_ACCEPTED
+	const bool m_Debug = true;
 };
 
 static std::string getUserInput()
@@ -83,15 +75,7 @@ void handleInputLocal(GameState* gs)
 	if(GetAsyncKeyState(VK_LCONTROL)) //good way to async open, uses backslash to start!
 	{
 		//printf("Enter key pressed \n"); //debug
-		std::string text = getUserInput();
-		ChatMessage msg = {
-			RakNet::GetTime(),
-			gs->m_MyAddress,
-			text.c_str()
-		};
-
-		//Add new msg to unhandled Clieny messages
-		gs->unhandeledClientMessages.push_back(msg);
+		//std::string text = getUserInput();
 	}
 
 }
@@ -99,161 +83,31 @@ void handleInputLocal(GameState* gs)
 void handleInputRemote(GameState* gs)
 {
 	//receive packets
-	for (RakNet::Packet* packet = gs->peer->Receive(); packet; gs->peer->DeallocatePacket(packet), packet = gs->peer->Receive())
+	for (RakNet::Packet* packet = gs->m_Peer->Receive(); packet; gs->m_Peer->DeallocatePacket(packet), packet = gs->m_Peer->Receive())
 	{
 		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
-		RakNet::BitStream bsOut;
-		bsIn.Read(msg);
 
-
-		RakNet::Time timestamp = RakNet::GetTime(); //as a safe backup, just in case its not set
-		if (msg == ID_TIMESTAMP)
-		{
-			//todo handle time
-			bsIn.Read(timestamp);
-			bsIn.Read(msg);//now we update to show the real message
-		}
-
-		//used in switch
-		RakNet::SystemAddress address;
-		RakNet::RakString msgStr;
-
-		switch (msg)
-		{
-		case ID_REMOTE_DISCONNECTION_NOTIFICATION:
-		case ID_REMOTE_CONNECTION_LOST:
-			
-			bsOut.Read(address);
-			//bsOut.
-
-			printf((gs->m_DisplayNames.find(address)->second + " has disconnected.").c_str());
-
-			gs->m_DisplayNames.erase(gs->m_DisplayNames.find(address));
-			break;
-		case ID_REMOTE_NEW_INCOMING_CONNECTION:
-			//we dont do anything cause their name will send automatically and be handeled in ID_DISPLAY_NAME_UPDATED event
-			break;
-		case ID_CONNECTION_REQUEST_ACCEPTED:
-		{
-			printf("Our connection request has been accepted.\n");
-			//RakNet::BitStream bsOut; moved to the top of this loop
-
-			//we are officially connected, save stuff here
-			gs->m_MyAddress = gs->peer->GetInternalID();
-			gs->m_DisplayNames[gs->m_MyAddress] = gs->m_LocalDisplayName;
-			gs->m_ServerAddress = packet->systemAddress;
-
-			//This needs to be handled better this was just for debug purposes
-			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			bsOut.Write(RakNet::GetTime());
-			bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
-			bsOut.Write(gs->m_MyAddress);
-			bsOut.Write(RakNet::RakString(gs->m_DisplayNames.find(gs->m_MyAddress)->second.c_str()));
-			gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
-			break;
-		}
-		case ID_NO_FREE_INCOMING_CONNECTIONS:
-			printf("The server is full, cannot join.\n");
-			break;
-		case ID_DISCONNECTION_NOTIFICATION:
-			printf("We have disconnected.\n");
-			break;
-		case ID_CONNECTION_LOST:
-			printf("We lost connection.\n");	
-			break;
-		case ID_CHAT_MESSAGE:
-		{
-			bsIn.Read(address);
-			bsIn.Read(msgStr);
-			ChatMessage msg = {
-				timestamp,
-				address,
-				msgStr.C_String(),
-			};
-			gs->unhandeledRemoteMessages.push_back(msg);
-			break;
-		}
-
-		case ID_DISPLAY_NAME_UPDATED:
-		{
-			RakNet::SystemAddress sender;
-			RakNet::RakString displayName;
-
-			bsIn.Read(sender);
-			bsIn.Read(displayName);
-
-			gs->m_DisplayNames[sender] = displayName.C_String();
-		}
-		break;
-		default:
-			printf("Message with identifier %i has arrived.\n", packet->data[0]);
-			break;
-		}
+		NetworkMessage::DecypherPacket(&bsIn, gs->m_ServerMessageQueue);
+		//now msgqueue up to date
 	}
 }
 
 void handleUpdate(GameState* gs)
 {
-	gs->unprintedMessageCache.clear();
-	for (int i = 0; i < gs->unhandeledRemoteMessages.size(); i++)
-	{
-		//add to message cache
-		gs->unprintedMessageCache.push_back(gs->unhandeledRemoteMessages[i]);
-	}
-	gs->unhandeledRemoteMessages.clear();
 
-	
-	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++) 
-	{
-		gs->unprintedMessageCache.push_back(gs->unhandeledClientMessages[i]);
-	}
-	
-	//we dont delete from unhandledClientMessages as that is used in the remote sending
 }
 
 //Note: we dont use const here as we move the message from unhandeled to handled.
 void handleOutputRemote(GameState* gs)
 {
-	//send all input messages from player
-	for (int i = 0; i < gs->unhandeledClientMessages.size(); i++)
-	{
-		RakNet::BitStream bsOut;
 
-		//Timestamp Message
-		bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-		bsOut.Write(gs->unhandeledClientMessages[i].time);
-
-
-		bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-		bsOut.Write(RakNet::RakString(gs->unhandeledClientMessages[i].msg.c_str()));
-
-		
-		gs->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, gs->m_ServerAddress, false);//gs->m_ServerAddress, false); //For some reason this is not correct so as a fix to just test my server changes im broadcasting to all
-	}
-	gs->unhandeledClientMessages.clear();
 
 }
 
 void handleOutputLocal(const GameState* gs)
 {
-	//output all messages
-	//reprint all messages from message cache
 
-	for (std::list<ChatMessage>::const_iterator it = (gs->unprintedMessageCache.begin()); it != gs->unprintedMessageCache.end(); ++it)
-	{
-		std::map<RakNet::SystemAddress, std::string>::const_iterator displayNameIt = gs->m_DisplayNames.find(it->sender);
-		std::string name;
-		if (displayNameIt != gs->m_DisplayNames.end())
-		{
-			name = displayNameIt->second;
-		}
-		else
-		{
-			name = it->sender.ToString();
-		}
-		std::cout << name << ": " << it->msg << std::endl;
-	}
 }
 
 int main(void)

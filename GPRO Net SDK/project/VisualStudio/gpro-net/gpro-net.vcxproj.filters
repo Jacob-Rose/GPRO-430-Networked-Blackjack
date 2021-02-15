@@ -18,12 +18,24 @@
     <ClInclude Include="..\..\..\include\gpro-net\gpro-net.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\source\gpro-net\shared-net.h">
+    <ClInclude Include="..\..\..\include\gpro-net\gpro-net-gamestate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\gpro-net\gpro-net-console.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\gpro-net\shared-net.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\source\gpro-net\gpro-net.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\include\gpro-net\gpro-net-console_win.c">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\source\gpro-net\shared-net.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
