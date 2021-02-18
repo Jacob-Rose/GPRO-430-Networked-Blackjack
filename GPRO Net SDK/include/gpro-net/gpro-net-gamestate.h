@@ -104,7 +104,7 @@ typedef enum gpro_checkers_flag
 	gpro_checkers_player2_stack = gpro_checkers_player2 | gpro_checkers_stack,	// player 2 stacked pieces
 } gpro_checkers_flag;
 
-typedef enum gpro_mancala_index
+typedef enum class gpro_mancala_index
 {
 	gpro_mancala_score,
 	gpro_mancala_cup1,

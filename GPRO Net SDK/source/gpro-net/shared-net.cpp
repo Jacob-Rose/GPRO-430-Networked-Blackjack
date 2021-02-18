@@ -37,7 +37,7 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 	RakNet::MessageID id;
 	bs->Read(id); //now for each message constructor, THE MESSAGE IS TRIMMED OFF THE FRONT, SO THE READ DOES NOT NEED TO ADDRESS THIS MESSAGE ID WE ALREADY KNOW
 	//possibly read in id count
-	int idCount;
+	int idCount = 0;
 	if (id == ID_PACKAGED_PACKET)
 	{
 		bs->Read(idCount);
@@ -66,6 +66,13 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 				msgQueue.push_back(msg);
 				break;
 			}
+			case ID_PLAYER_CHAT_MESSAGE:
+			{
+				PlayerChatMessage* msg = new PlayerChatMessage();
+				msg->ReadPacketBitstream(bs);
+				msgQueue.push_back(msg);
+				break;
+			}
 			default:
 			{
 				NotificationMessage* msg = new NotificationMessage(id);
@@ -84,7 +91,7 @@ void NetworkMessage::CreatePacketHeader(RakNet::BitStream* bs, int msgCount)
 
 bool TimestampMessage::WritePacketBitstream(RakNet::BitStream* bs)
 {
-	bs->Write(m_MessageID);
+	bs->Write(m_MessageID); //ID_TIMESTAMP
 	bs->Write(m_Time);
 	return true;
 }
@@ -92,5 +99,24 @@ bool TimestampMessage::WritePacketBitstream(RakNet::BitStream* bs)
 bool TimestampMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 {
 	bs->Read(m_Time);
+	return true;
+}
+
+bool PlayerChatMessage::WritePacketBitstream(RakNet::BitStream* bs)
+{
+	bs->Read(m_Sender);
+	bs->Read(m_Receiver);
+	RakNet::RakString rakString;
+	bs->Read(rakString);
+	m_Message = rakString.C_String();
+	return true;
+}
+
+bool PlayerChatMessage::ReadPacketBitstream(RakNet::BitStream* bs)
+{
+	bs->Write(m_MessageID);
+	bs->Write(m_Sender);
+	bs->Write(m_Receiver);
+	bs->Write(RakNet::RakString(m_Message.c_str()));
 	return true;
 }

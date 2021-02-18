@@ -20,7 +20,8 @@ enum GameMessageID
 {
 	ID_PACKAGED_PACKET = ID_USER_PACKET_ENUM + 1,
 	ID_DISPLAY_NAME_UPDATED,
-	ID_PLAYER_MOVE
+	ID_PLAYER_MOVE,
+	ID_PLAYER_CHAT_MESSAGE
 };
 
 class TimestampMessage;
@@ -95,7 +96,20 @@ class PlayerMoveMessage : public NetworkMessage
 	gpro_mancala_index m_MoveIndex;
 
 public:
-	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE) { }
+	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE), m_MoveIndex((gpro_mancala_index)0) { }
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
+class PlayerChatMessage : public NetworkMessage
+{
+
+	RakNet::SystemAddress m_Sender;
+	RakNet::SystemAddress m_Receiver;
+	std::string m_Message; //converts to RakNet::RakString and back
+public:
+	PlayerChatMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_CHAT_MESSAGE) { }
 
 	bool WritePacketBitstream(RakNet::BitStream* bs) override;
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
