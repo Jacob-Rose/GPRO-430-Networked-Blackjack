@@ -24,6 +24,8 @@
 
 #include "gpro-net/gpro-net.h"
 
+#include "deck.cpp"
+
 //STD
 #include <stdio.h>
 #include <string.h>
@@ -72,7 +74,7 @@ static std::string getUserInput()
 void handleInputLocal(GameState* gs)
 {
 	//0x01 is because this is bitwise operations and the return value of getAsyncKeyState is in the same format
-	if(GetAsyncKeyState(VK_LCONTROL)) //good way to async open, uses backslash to start!
+	if (GetAsyncKeyState(VK_LCONTROL)) //good way to async open, uses backslash to start!
 	{
 		//printf("Enter key pressed \n"); //debug
 		//std::string text = getUserInput();
@@ -109,58 +111,204 @@ void handleOutputLocal(const GameState* gs)
 
 }
 
+void DisplayHands(std::vector<int> p1, std::vector<int> dealer)
+{
+	std::cout << "The Dealer has: ";
+
+	for (auto i : dealer)
+	{
+		std::cout << i << " ";
+	}
+
+	std::cout << "\n\n";
+	std::cout << "Player 1 has: ";
+
+	for (auto i : p1)
+	{
+		std::cout << i << " ";
+	}
+
+	std::cout << "\n\n";
+}
+
+int getSum(std::vector<int> hand)
+{
+	int sum = 0;
+	for (auto i : hand)
+	{
+		sum += i;
+	}
+	return sum;
+}
+
+bool CheckHand(std::vector<int> hand)
+{
+	return getSum(hand) > 21;
+}
 int main(void)
 {
-	 //for us
+	//for us
+
+   /*
+   GameState gs[1] = { 0 };
+
+   const unsigned short SERVER_PORT = 7777;
+   const char* SERVER_IP = "172.16.2.57"; //update every time
+
+   gs->m_Peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
+
+   std::string displayName;
+   std::string serverIp;
+   if (!gs->m_Debug)
+   {
+
+	   printf("Enter Display Name for server: ");
+	   gs->m_LocalDisplayName = getUserInput();
 
 
+	   printf("Enter IP Address for server: ");
+	   serverIp = getUserInput();
+   }
+   else
+   {
+	   serverIp = SERVER_IP;
+	   gs->m_LocalDisplayName = "D Client";
+   }
 
-	GameState gs[1] = { 0 };
+   RakNet::SocketDescriptor sd;
+   gs->m_Peer->Startup(1, &sd, 1);
+   gs->m_Peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
 
-	const unsigned short SERVER_PORT = 7777;
-	const char* SERVER_IP = "172.16.2.57"; //update every time
 
-	gs->m_Peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
+   while (1)
+   {
+	   //input
+	   handleInputLocal(gs);
+	   //receive and merge
+	   handleInputRemote(gs);
+	   //update
+	   handleUpdate(gs);
+	   //package & send
+	   handleOutputRemote(gs);
+	   //output
+	   handleOutputLocal(gs);
+   }
 
-	std::string displayName;
-	std::string serverIp;
-	if (!gs->m_Debug)
+
+   RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
+   */
+
+	bool turnOver = false;
+	bool isRunning = true;
+	char in;
+	Deck deck;
+	deck.initDeck();
+	deck.shuffleDeck();
+
+	std::vector<int> p1Hand;
+	std::vector<int> dealerHand;
+
+
+	while (isRunning)
 	{
-		
-		printf("Enter Display Name for server: ");
-		gs->m_LocalDisplayName = getUserInput();
+		//Starting the game, we deal a hand to p1 and dealer
 
-		
-		printf("Enter IP Address for server: ");
-		serverIp = getUserInput();
+		p1Hand.push_back(deck.getNextCard());
+		p1Hand.push_back(deck.getNextCard());
+		dealerHand.push_back(deck.getNextCard());
+		dealerHand.push_back(deck.getNextCard());
+
+		DisplayHands(p1Hand, dealerHand);
+
+		//p1 turn
+		while (!turnOver)
+		{
+			std::cout << "Would you like to (h)it or (s)tand?" << "\n\n";
+			std::cin >> in;
+
+			if (in == 'h')
+			{
+				p1Hand.push_back(deck.getNextCard());
+				turnOver = CheckHand(p1Hand);
+			}
+			else
+			{
+				turnOver = true;
+			}
+			//Checks if player has busted
+			DisplayHands(p1Hand, dealerHand);
+
+		}
+
+		turnOver = false;
+
+		//Dealer Turn
+		while (!turnOver)
+		{
+			if (getSum(dealerHand) >= 18) //stopping or bust
+			{
+				turnOver = true;
+			}
+			else
+			{
+				dealerHand.push_back(deck.getNextCard());
+			}
+		}
+
+		//Decide victory
+		//Above 21 means lose
+		//Who ever is higher wins
+		//If same then tie
+
+		DisplayHands(p1Hand, dealerHand);
+
+		int p1Sum = getSum(p1Hand);
+		int dealerSum = getSum(dealerHand);
+
+		if ((dealerSum > 21 && p1Sum > 21) || dealerSum == p1Sum)
+		{
+			std::cout << "It's a tie" << '\n';
+		}
+		else if (dealerSum > 21 && p1Sum <= 21)
+		{
+			std::cout << "Player 1 Wins" << '\n';
+		}
+		else if (p1Sum > 21 && dealerSum <= 21)
+		{
+			std::cout << "Dealer Wins" << '\n';
+		}
+		else if (p1Sum > dealerSum)
+		{
+			std::cout << "Player 1 Wins" << '\n';
+		}
+		else if (dealerSum < p1Sum)
+		{
+			std::cout << "Dealer Wins" << '\n';
+		}
+		else
+		{
+			std::cout << "Something went wrong: " << '\n';
+		}
+
+		std::cout << "Would you like to play again? (Y)es or (N)o?" << '\n';
+		char in;
+		std::cin >> in;
+
+		if (in == 'y')
+		{
+			//Reset Values
+			deck.initDeck();
+			deck.shuffleDeck();
+			p1Hand.clear();
+			dealerHand.clear();
+			turnOver = false;
+
+		}
+		else
+		{
+			isRunning = false;
+		}
 	}
-	else
-	{
-		serverIp = SERVER_IP;
-		gs->m_LocalDisplayName = "D Client";
-	}
-	
-	RakNet::SocketDescriptor sd;
-	gs->m_Peer->Startup(1, &sd, 1);
-	gs->m_Peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
-
-
-	while (1)
-	{
-		//input
-		handleInputLocal(gs);
-		//receive and merge
-		handleInputRemote(gs);
-		//update
-		handleUpdate(gs);
-		//package & send
-		handleOutputRemote(gs);
-		//output
-		handleOutputLocal(gs);
-	}
-
-
-	RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
 
 	return 0;
 }

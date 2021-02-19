@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\source\gpro-net-Console-Client\deck.cpp" />
     <ClCompile Include="..\..\..\source\gpro-net-Console-Client\main-client.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
