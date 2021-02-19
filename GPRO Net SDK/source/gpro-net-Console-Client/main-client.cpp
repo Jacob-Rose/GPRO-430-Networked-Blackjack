@@ -85,7 +85,6 @@ void handleInputRemote(GameState* gs)
 	//receive packets
 	for (RakNet::Packet* packet = gs->m_Peer->Receive(); packet; gs->m_Peer->DeallocatePacket(packet), packet = gs->m_Peer->Receive())
 	{
-		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
 
 		NetworkMessage::DecypherPacket(&bsIn, gs->m_ServerMessageQueue);
@@ -121,7 +120,7 @@ int main(void)
 	const unsigned short SERVER_PORT = 7777;
 	const char* SERVER_IP = "172.16.2.57"; //update every time
 
-	gs->peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
+	gs->m_Peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 
 	std::string displayName;
 	std::string serverIp;
@@ -142,8 +141,8 @@ int main(void)
 	}
 	
 	RakNet::SocketDescriptor sd;
-	gs->peer->Startup(1, &sd, 1);
-	gs->peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
+	gs->m_Peer->Startup(1, &sd, 1);
+	gs->m_Peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
 
 
 	while (1)
@@ -161,7 +160,7 @@ int main(void)
 	}
 
 
-	RakNet::RakPeerInterface::DestroyInstance(gs->peer);
+	RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
 
 	return 0;
 }

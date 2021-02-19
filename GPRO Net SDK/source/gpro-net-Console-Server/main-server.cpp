@@ -46,11 +46,11 @@ struct ServerState
 {
 	// not much need for anything else rn
 	RakNet::RakPeerInterface* peer;
-	std::vector<ChatMessage> messageCache;
+	//std::vector<ChatMessage> messageCache;
 
 
-	std::vector<ChatMessage> unsentMessages;
-	std::vector<ChatMessage> unhandledBroadcastMessages;
+	//std::vector<ChatMessage> unsentMessages;
+	//std::vector<ChatMessage> unhandledBroadcastMessages;
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
 	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works

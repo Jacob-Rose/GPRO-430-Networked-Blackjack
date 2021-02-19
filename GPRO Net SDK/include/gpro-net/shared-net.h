@@ -56,8 +56,8 @@ public:
 	NotificationMessage(RakNet::MessageID id) : NetworkMessage(id) { }
 
 	//these do nothing as the notification message stores the messageID and nothing more
-	bool WritePacketBitstream(RakNet::BitStream* bs) override { bs->Write(m_MessageID); }
-	bool ReadPacketBitstream(RakNet::BitStream* bs) override {}
+	bool WritePacketBitstream(RakNet::BitStream* bs) override { bs->Write(m_MessageID); return true; }
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override { return true; }
 };
 
 
