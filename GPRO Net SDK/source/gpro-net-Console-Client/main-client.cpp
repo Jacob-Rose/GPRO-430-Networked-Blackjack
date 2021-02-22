@@ -155,6 +155,7 @@ int main(void)
 
    
    GameState gs[1] = { 0 };
+   BlackjackState bjs[1] = { };
 
    const unsigned short SERVER_PORT = 7777;
    const char* SERVER_IP = "172.16.2.57"; //update every time

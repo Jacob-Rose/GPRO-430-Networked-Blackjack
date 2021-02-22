@@ -41,7 +41,15 @@
 #include <RakNet/RakNetTypes.h>  // MessageID
 
 #include "gpro-net/shared-net.h"
+#include "Deck.h"
 
+
+struct ServerBlackjackState
+{
+	//Blackjack data only the server should access
+	Deck deck;
+	int currentPlayerTurn = 0; 
+};
 
 struct ServerState 
 {

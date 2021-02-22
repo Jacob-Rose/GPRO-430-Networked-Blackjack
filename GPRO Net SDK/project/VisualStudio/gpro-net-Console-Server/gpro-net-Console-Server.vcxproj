@@ -21,6 +21,9 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\source\gpro-net-Console-Server\main-server.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Deck.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
