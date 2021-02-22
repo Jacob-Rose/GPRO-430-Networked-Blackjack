@@ -23,6 +23,7 @@ enum GameMessageID
 	ID_PLAYER_MOVE,
 	ID_PLAYER_CARD_DRAWN,
 	ID_PLAYER_CHAT,
+	ID_PLAYER_SPECTATOR_CHOICE,
 	ID_GAME_START,
 	ID_ACTIVE_PLAYER_ORDER
 };
@@ -30,6 +31,19 @@ enum GameMessageID
 class TimestampMessage;
 class PlayerMoveMessage;
 class DisplayNameChangeMessage;
+
+
+struct BlackjackState
+{
+	struct PlayerState
+	{
+		RakNet::SystemAddress m_Address;
+		std::vector<int> m_Cards;
+	};
+	std::vector<PlayerState> m_ActivePlayers;
+	std::vector<int> m_DealerCards;
+	std::vector<RakNet::SystemAddress> m_SpectatingPlayers; //no cards
+};
 
 
 class NetworkMessage
@@ -53,6 +67,7 @@ public:
 };
 
 
+
 //Used for messages that are more events that have no information tied to them, connecting, disconnect, all that jazz
 class NotificationMessage : public NetworkMessage
 {
@@ -63,6 +78,7 @@ public:
 	bool WritePacketBitstream(RakNet::BitStream* bs) override { bs->Write(m_MessageID); return true; }
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override { return true; }
 };
+
 
 
 //Holds the timestamp, may need to be moved to the packet header
@@ -93,6 +109,19 @@ public:
 };
 
 
+
+class PlayerSpectatorChoiceMessage : public NetworkMessage
+{
+	RakNet::SystemAddress m_Sender;
+	bool m_Spectating;
+public:
+	PlayerSpectatorChoiceMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_SPECTATOR_CHOICE), m_Spectating(false) {}
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
+
 //Holds all information about the player move
 class PlayerMoveMessage : public NetworkMessage
 {
@@ -109,8 +138,8 @@ public:
 //mostly sent to players
 class PlayerCardDrawnMessage : public NetworkMessage 
 {
-	RakNet::SystemAddress m_Player;
-	short m_CardDrawn; //0 -> Stay | 1-> Hit
+	RakNet::SystemAddress m_Player; //UNASSINGED_SYSTEM_ADDRESS = SERVER
+	short m_CardDrawn; 
 public:
 	PlayerCardDrawnMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_CARD_DRAWN), m_CardDrawn(0) {}
 
@@ -133,9 +162,12 @@ public:
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
 };
 
+
+//Send at start each time
 class PlayerActiveOrderMessage : public NetworkMessage
 {
 	std::vector<RakNet::SystemAddress> m_ActivePlayers;
+	std::vector<RakNet::SystemAddress> m_SpectatingPlayers;
 public:
 	PlayerActiveOrderMessage() : NetworkMessage((RakNet::MessageID)ID_ACTIVE_PLAYER_ORDER) { }
 
