@@ -21,14 +21,14 @@ bool PlayerMoveMessage::WritePacketBitstream(RakNet::BitStream* bs)
 {
 	bs->Write(m_MessageID);
 	bs->Write(m_Player);
-	bs->Write(m_CardValue);
+	bs->Write(m_PlayerMove);
 	return true;
 }
 
 bool PlayerMoveMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 {
 	bs->Read(m_Player);
-	bs->Read(m_CardValue);
+	bs->Read(m_PlayerMove);
 	return true;
 }
 
