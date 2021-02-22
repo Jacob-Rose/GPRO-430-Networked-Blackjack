@@ -21,14 +21,14 @@ bool PlayerMoveMessage::WritePacketBitstream(RakNet::BitStream* bs)
 {
 	bs->Write(m_MessageID);
 	bs->Write(m_Player);
-	bs->Write(m_MoveIndex);
+	bs->Write(m_CardValue);
 	return true;
 }
 
 bool PlayerMoveMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 {
 	bs->Read(m_Player);
-	bs->Read(m_MoveIndex);
+	bs->Read(m_CardValue);
 	return true;
 }
 
@@ -66,9 +66,16 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 				msgQueue.push_back(msg);
 				break;
 			}
-			case ID_PLAYER_CHAT_MESSAGE:
+			case ID_PLAYER_CHAT:
 			{
 				PlayerChatMessage* msg = new PlayerChatMessage();
+				msg->ReadPacketBitstream(bs);
+				msgQueue.push_back(msg);
+				break;
+			}
+			case ID_ACTIVE_PLAYER_ORDER:
+			{
+				PlayerActiveOrderMessage* msg = new PlayerActiveOrderMessage();
 				msg->ReadPacketBitstream(bs);
 				msgQueue.push_back(msg);
 				break;
@@ -118,5 +125,15 @@ bool PlayerChatMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 	bs->Write(m_Sender);
 	bs->Write(m_Receiver);
 	bs->Write(RakNet::RakString(m_Message.c_str()));
+	return true;
+}
+
+bool PlayerActiveOrderMessage::WritePacketBitstream(RakNet::BitStream* bs)
+{
+	return true;
+}
+
+bool PlayerActiveOrderMessage::ReadPacketBitstream(RakNet::BitStream* bs)
+{
 	return true;
 }

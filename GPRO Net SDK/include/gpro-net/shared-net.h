@@ -21,7 +21,9 @@ enum GameMessageID
 	ID_PACKAGED_PACKET = ID_USER_PACKET_ENUM + 1,
 	ID_DISPLAY_NAME_UPDATED,
 	ID_PLAYER_MOVE,
-	ID_PLAYER_CHAT_MESSAGE
+	ID_PLAYER_CHAT,
+	ID_GAME_START,
+	ID_ACTIVE_PLAYER_ORDER
 };
 
 class TimestampMessage;
@@ -93,10 +95,10 @@ public:
 class PlayerMoveMessage : public NetworkMessage
 {
 	RakNet::SystemAddress m_Player;
-	gpro_mancala_index m_MoveIndex;
+	int m_CardValue;
 
 public:
-	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE), m_MoveIndex((gpro_mancala_index)0) { }
+	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE), m_CardValue(0) { }
 
 	bool WritePacketBitstream(RakNet::BitStream* bs) override;
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
@@ -109,7 +111,17 @@ class PlayerChatMessage : public NetworkMessage
 	RakNet::SystemAddress m_Receiver;
 	std::string m_Message; //converts to RakNet::RakString and back
 public:
-	PlayerChatMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_CHAT_MESSAGE) { }
+	PlayerChatMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_CHAT) { }
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
+class PlayerActiveOrderMessage : public NetworkMessage
+{
+	std::vector<RakNet::SystemAddress> m_ActivePlayers;
+public:
+	PlayerActiveOrderMessage() : NetworkMessage((RakNet::MessageID)ID_ACTIVE_PLAYER_ORDER) { }
 
 	bool WritePacketBitstream(RakNet::BitStream* bs) override;
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override;

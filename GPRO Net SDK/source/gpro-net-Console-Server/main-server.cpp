@@ -45,14 +45,15 @@
 struct ServerState 
 {
 	// not much need for anything else rn
-	RakNet::RakPeerInterface* peer;
-	//std::vector<ChatMessage> messageCache;
+	RakNet::RakPeerInterface* m_Peer;
+	std::vector<NetworkMessage*> m_InputEventCache;
 
 
 	//std::vector<ChatMessage> unsentMessages;
 	//std::vector<ChatMessage> unhandledBroadcastMessages;
 
-	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
+	std::map<RakNet::SystemAddress, std::string> m_ActivePlayers;
+	std::map<RakNet::SystemAddress, std::string> m_SpectatingPlayers;
 	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works
 	std::ofstream msgSaver;
 };
@@ -60,186 +61,23 @@ struct ServerState
 void handleInput(ServerState* ss) 
 {
 	RakNet::Packet* packet;
-	for (packet = ss->peer->Receive(); packet; ss->peer->DeallocatePacket(packet), packet = ss->peer->Receive())
+	for (packet = ss->m_Peer->Receive(); packet; ss->m_Peer->DeallocatePacket(packet), packet = ss->m_Peer->Receive())
 	{
-		RakNet::MessageID msg;
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
-		RakNet::BitStream bsOut;
-		bsIn.Read(msg);
-
-		RakNet::Time timestamp = NULL;
-		if (msg == ID_TIMESTAMP)
-		{
-			//todo handle time
-			bsIn.Read(timestamp);
-			bsIn.Read(msg);//now we update to show the real message
-		}
-
-		switch (msg)
-		{
-		case ID_NEW_INCOMING_CONNECTION:
-		case ID_REMOTE_NEW_INCOMING_CONNECTION:
-		{
-			printf("A client has connected.\n");
-
-			//Get our display name and create a chatmessage
-			RakNet::RakString msgStr = ss->m_DisplayNames[packet->systemAddress].c_str();
-
-			ChatMessage cmsg{
-				timestamp,
-				packet->systemAddress,
-				msgStr.C_String()
-			};
-
-
-			//ss->unhandledBroadcastMessages.push_back(msg);
-
-			//send them the display name list
-			
-			for (std::map<RakNet::SystemAddress, std::string>::iterator it = ss->m_DisplayNames.begin(); it != ss->m_DisplayNames.end(); ++it)
-			{
-				bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-				bsOut.Write(RakNet::GetTime());
-				bsOut.Write((RakNet::MessageID)ID_DISPLAY_NAME_UPDATED);
-				bsOut.Write(it->first);
-				RakNet::RakString formatString = it->second.c_str();
-				bsOut.Write(formatString);
-				ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
-			}
-			
-
-			break;
-		}
-		case ID_CONNECTION_LOST:
-		case ID_DISCONNECTION_NOTIFICATION:
-		case ID_REMOTE_DISCONNECTION_NOTIFICATION:
-		case ID_REMOTE_CONNECTION_LOST:
-		{
-			printf("A client has left.\n");
-			//Create new time stamp for bit stream to be sent
-			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			bsOut.Write(RakNet::GetTime());
-
-			//Get our display name and create a chatmessage
-			RakNet::RakString msgStr = (ss->m_DisplayNames[packet->systemAddress] + " disconnected.").c_str();
-
-			ChatMessage cmsg{
-				timestamp,
-				packet->systemAddress,
-				msgStr.C_String()
-			};
-
-			//write message to bit stream
-			bsOut.Write((RakNet::MessageID)ID_REMOTE_CONNECTION_LOST);
-			bsOut.Write(packet->systemAddress);
-
-			ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
-
-
-			//Erase our display name from the map
-			ss->m_DisplayNames[packet->systemAddress].erase();//probably not a great solution but it will clear the name
-
-			//Save for later sending
-			ss->unhandledBroadcastMessages.push_back(cmsg);
-			break;
-		}
-		
-		case ID_NO_FREE_INCOMING_CONNECTIONS:
-			printf("The server is full.\n");
-			break;
-		case ID_CHAT_MESSAGE:
-		{
-			RakNet::BitStream bsOut;
-			RakNet::RakString msgStr;
-			bsIn.Read(msgStr);
-
-			bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-			bsOut.Write(RakNet::GetTime());
-
-			bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-			bsOut.Write(packet->systemAddress); 
-			bsOut.Write(msgStr);
-
-			std::string temp = ss->m_DisplayNames.find(packet->systemAddress)->second + ": " + msgStr.C_String() + "\n";
-			msgStr.Set(temp.c_str());
-
-			ChatMessage cmsg{
-				timestamp,
-				packet->systemAddress,
-				msgStr.C_String()
-			};
-			//Save to file set in the server State struct
-
-			
-
-
-			ss->msgSaver << msgStr;
-			//ss->msgSaver << std::endl; //each message on its own line			
-
-			std::cout << msgStr;
-
-			//Broadcast Message To Everyone (except one who sent it)
-			//RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
-			ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
-		}
-		break;
-		case ID_DISPLAY_NAME_UPDATED:
-		{
-			RakNet::SystemAddress sender;
-			RakNet::RakString displayName;
-
-			bsIn.Read(sender);
-			bsIn.Read(displayName);
-
-			if (sender == packet->systemAddress) //make sure the client is changing their name only
-			{
-				ss->m_DisplayNames.find(packet->systemAddress)->second = displayName.C_String();
-			}
-			
-			//Broadcast Message To Everyone (except one who sent it)
-			RakNet::BitStream untamperedBS(packet->data, packet->length, false); //so we send the whole message
-			ss->peer->Send(&untamperedBS, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
-			
-		}
-		break;
-		default:
-			printf("Message with identifier %i has arrived.\n", packet->data[0]);
-			break;
-		}
+		NetworkMessage::DecypherPacket(&bsIn, ss->m_InputEventCache);
+		//yup, thats it in the input step
 	}
 }
 
 void handleUpdate(ServerState* ss)
 {
-	//Same format as client messages
-	for (int i = 0; i < ss->unhandledBroadcastMessages.size(); i++)
-	{
-		//add to message cache
-		ss->unsentMessages.push_back(ss->unhandledBroadcastMessages[i]);
-	}
-	ss->unhandledBroadcastMessages.clear();
+
 	
 }
 
 void handleOutput(ServerState* ss)
 {
-	for (int i = 0; i < ss->unsentMessages.size(); i++)
-	{
-		RakNet::BitStream bsOut;
 
-		//Timestamp Message
-		bsOut.Write((RakNet::MessageID)ID_TIMESTAMP);
-		bsOut.Write(ss->unsentMessages[i].time);
-
-
-		bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-		bsOut.Write(ss->unsentMessages[i].sender);
-		bsOut.Write(RakNet::RakString(ss->unsentMessages[i].msg.c_str()));
-
-
-		ss->peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);//gs->m_ServerAddress, false); // For now I want it to send messages I have tried geting the correct address but no luck
-	}
-	ss->unsentMessages.clear();
 }
 
 int main(void)

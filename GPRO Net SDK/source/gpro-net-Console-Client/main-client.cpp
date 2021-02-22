@@ -57,8 +57,11 @@ struct GameState
 	RakNet::RakPeerInterface* m_Peer;
 
 	std::vector<NetworkMessage*> m_ServerMessageQueue; //we directly read from the bitstreams and add to this. Note, delete event object with delete when done
+	std::vector<NetworkMessage*> m_LocalMessageQueue; //we directly read from the bitstreams and add to this. Note, delete event object with delete when done
 
-	std::map<RakNet::SystemAddress, std::string> m_DisplayNames;
+	std::vector<RakNet::SystemAddress> m_PlayerOrder; //stores the player order for the game
+
+	std::map<RakNet::SystemAddress, std::string> m_DisplayNames; //all display names
 	std::string m_LocalDisplayName; //saved and added to m_DisplayName on ID_CONNECTION_REQUEST_ACCEPTED
 	const bool m_Debug = true;
 };
@@ -77,7 +80,11 @@ void handleInputLocal(GameState* gs)
 	if (GetAsyncKeyState(VK_LCONTROL)) //good way to async open, uses backslash to start!
 	{
 		//printf("Enter key pressed \n"); //debug
-		//std::string text = getUserInput();
+		std::string text = getUserInput();
+		if (text == "Start Game")
+		{
+			m_
+		}
 	}
 
 }
@@ -90,7 +97,7 @@ void handleInputRemote(GameState* gs)
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
 
 		NetworkMessage::DecypherPacket(&bsIn, gs->m_ServerMessageQueue);
-		//now msgqueue up to date
+		//yup, thats it in the input step
 	}
 }
 
@@ -149,7 +156,7 @@ int main(void)
 {
 	//for us
 
-   /*
+   
    GameState gs[1] = { 0 };
 
    const unsigned short SERVER_PORT = 7777;
@@ -159,21 +166,28 @@ int main(void)
 
    std::string displayName;
    std::string serverIp;
+   std::string isPlayer;
    if (!gs->m_Debug)
    {
 
 	   printf("Enter Display Name for server: ");
 	   gs->m_LocalDisplayName = getUserInput();
 
-
 	   printf("Enter IP Address for server: ");
 	   serverIp = getUserInput();
+
+	   printf("(P)layer or (S)pectator?: ");
+	   isPlayer = getUserInput();
+
    }
    else
    {
 	   serverIp = SERVER_IP;
 	   gs->m_LocalDisplayName = "D Client";
+	   isPlayer = "P";
    }
+
+
 
    RakNet::SocketDescriptor sd;
    gs->m_Peer->Startup(1, &sd, 1);
@@ -196,7 +210,7 @@ int main(void)
 
 
    RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
-   */
+   
 
 	bool turnOver = false;
 	bool isRunning = true;
