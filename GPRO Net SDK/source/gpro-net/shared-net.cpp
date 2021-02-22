@@ -41,9 +41,11 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 	if (id == ID_PACKAGED_PACKET)
 	{
 		bs->Read(idCount);
+		bs->Read(id);
 	}
 	for (int i = 0; i < idCount; i++)
 	{
+
 		switch (id) {
 			case ID_TIMESTAMP:
 			{
