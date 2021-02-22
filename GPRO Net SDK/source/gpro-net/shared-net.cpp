@@ -130,10 +130,24 @@ bool PlayerChatMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 
 bool PlayerActiveOrderMessage::WritePacketBitstream(RakNet::BitStream* bs)
 {
+	bs->Write(m_MessageID);
+	bs->Write(m_ActivePlayers.size());
+	for (int i = 0; i < m_ActivePlayers.size(); i++)
+	{
+		bs->Write(m_ActivePlayers[i]);
+	}
 	return true;
 }
 
 bool PlayerActiveOrderMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 {
+	int playerCount;
+	bs->Read(playerCount);
+	for (int i = 0; i < playerCount; i++)
+	{
+		RakNet::SystemAddress add;
+		bs->Read(add);
+		m_ActivePlayers.push_back(add);
+	}
 	return true;
 }

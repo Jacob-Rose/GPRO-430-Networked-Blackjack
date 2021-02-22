@@ -51,6 +51,7 @@ public:
 	//friend RakNet::BitStream& operator<<(RakNet::BitStream& bsp, NetworkMessage& msg);
 };
 
+
 //Used for messages that are more events that have no information tied to them, connecting, disconnect, all that jazz
 class NotificationMessage : public NetworkMessage
 {

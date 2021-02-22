@@ -81,10 +81,7 @@ void handleInputLocal(GameState* gs)
 	{
 		//printf("Enter key pressed \n"); //debug
 		std::string text = getUserInput();
-		if (text == "Start Game")
-		{
-			m_
-		}
+		//todo
 	}
 
 }
@@ -166,7 +163,6 @@ int main(void)
 
    std::string displayName;
    std::string serverIp;
-   std::string isPlayer;
    if (!gs->m_Debug)
    {
 
@@ -176,18 +172,13 @@ int main(void)
 	   printf("Enter IP Address for server: ");
 	   serverIp = getUserInput();
 
-	   printf("(P)layer or (S)pectator?: ");
-	   isPlayer = getUserInput();
 
    }
    else
    {
 	   serverIp = SERVER_IP;
 	   gs->m_LocalDisplayName = "D Client";
-	   isPlayer = "P";
    }
-
-
 
    RakNet::SocketDescriptor sd;
    gs->m_Peer->Startup(1, &sd, 1);
@@ -209,7 +200,7 @@ int main(void)
    }
 
 
-   RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
+    RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
    
 
 	bool turnOver = false;

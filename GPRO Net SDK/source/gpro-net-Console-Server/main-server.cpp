@@ -42,20 +42,27 @@
 
 #include "gpro-net/shared-net.h"
 
+struct BlackjackState;
+
 struct ServerState 
 {
 	// not much need for anything else rn
 	RakNet::RakPeerInterface* m_Peer;
 	std::vector<NetworkMessage*> m_InputEventCache;
-
+	std::vector<BlackjackState> m_ActiveGames;
 
 	//std::vector<ChatMessage> unsentMessages;
 	//std::vector<ChatMessage> unhandledBroadcastMessages;
 
-	std::map<RakNet::SystemAddress, std::string> m_ActivePlayers;
-	std::map<RakNet::SystemAddress, std::string> m_SpectatingPlayers;
+
 	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works
 	std::ofstream msgSaver;
+};
+
+struct BlackjackState
+{
+	std::map<RakNet::SystemAddress, std::string> m_ActivePlayers;
+	std::map<RakNet::SystemAddress, std::string> m_SpectatingPlayers;
 };
 
 void handleInput(ServerState* ss) 
@@ -71,7 +78,10 @@ void handleInput(ServerState* ss)
 
 void handleUpdate(ServerState* ss)
 {
+	for (int i = 0; i < ss->m_InputEventCache.size(); i++)
+	{
 
+	}
 	
 }
 
@@ -87,10 +97,10 @@ int main(void)
 
 	ServerState ss[1] = { 0 };
 
-	ss->peer = RakNet::RakPeerInterface::GetInstance();
+	ss->m_Peer = RakNet::RakPeerInterface::GetInstance();
 	RakNet::SocketDescriptor sd(SERVER_PORT, 0);
-	ss->peer->Startup(MAX_CLIENTS, &sd, 1);
-	ss->peer->SetMaximumIncomingConnections(MAX_CLIENTS);
+	ss->m_Peer->Startup(MAX_CLIENTS, &sd, 1);
+	ss->m_Peer->SetMaximumIncomingConnections(MAX_CLIENTS);
 	printf("Starting the server.\n");
 
 	//test load IMPORTANT NOTE This creates a txt file on the VDI which gets wiped on startup
@@ -122,7 +132,7 @@ int main(void)
 	}
 
 	ss->msgSaver.close();
-	RakNet::RakPeerInterface::DestroyInstance(ss->peer);
+	RakNet::RakPeerInterface::DestroyInstance(ss->m_Peer);
 
 	return 0;
 }
