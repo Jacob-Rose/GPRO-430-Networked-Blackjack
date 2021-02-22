@@ -111,20 +111,20 @@ bool TimestampMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 
 bool PlayerChatMessage::WritePacketBitstream(RakNet::BitStream* bs)
 {
-	bs->Read(m_Sender);
-	bs->Read(m_Receiver);
-	RakNet::RakString rakString;
-	bs->Read(rakString);
-	m_Message = rakString.C_String();
+	bs->Write(m_MessageID);
+	bs->Write(m_Sender);
+	bs->Write(m_Receiver);
+	bs->Write(RakNet::RakString(m_Message.c_str()));
 	return true;
 }
 
 bool PlayerChatMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 {
-	bs->Write(m_MessageID);
-	bs->Write(m_Sender);
-	bs->Write(m_Receiver);
-	bs->Write(RakNet::RakString(m_Message.c_str()));
+	bs->Read(m_Sender);
+	bs->Read(m_Receiver);
+	RakNet::RakString rakString;
+	bs->Read(rakString);
+	m_Message = rakString.C_String();
 	return true;
 }
 
@@ -149,5 +149,20 @@ bool PlayerActiveOrderMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 		bs->Read(add);
 		m_ActivePlayers.push_back(add);
 	}
+	return true;
+}
+
+bool PlayerCardDrawnMessage::ReadPacketBitstream(RakNet::BitStream* bs)
+{
+	bs->Read(m_Player);
+	bs->Read(m_CardDrawn);
+	return true;
+}
+
+bool PlayerCardDrawnMessage::WritePacketBitstream(RakNet::BitStream* bs)
+{
+	bs->Write(m_MessageID);
+	bs->Write(m_Player);
+	bs->Write(m_CardDrawn);
 	return true;
 }

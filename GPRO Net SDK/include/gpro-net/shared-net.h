@@ -21,6 +21,7 @@ enum GameMessageID
 	ID_PACKAGED_PACKET = ID_USER_PACKET_ENUM + 1,
 	ID_DISPLAY_NAME_UPDATED,
 	ID_PLAYER_MOVE,
+	ID_PLAYER_CARD_DRAWN,
 	ID_PLAYER_CHAT,
 	ID_GAME_START,
 	ID_ACTIVE_PLAYER_ORDER
@@ -96,14 +97,28 @@ public:
 class PlayerMoveMessage : public NetworkMessage
 {
 	RakNet::SystemAddress m_Player;
-	int m_CardValue;
+	short m_PlayerMove; //0 -> Stay | 1-> Hit
 
 public:
-	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE), m_CardValue(0) { }
+	PlayerMoveMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_MOVE), m_PlayerMove(0) { }
 
 	bool WritePacketBitstream(RakNet::BitStream* bs) override;
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
 };
+
+//mostly sent to players
+class PlayerCardDrawnMessage : public NetworkMessage 
+{
+	RakNet::SystemAddress m_Player;
+	short m_CardDrawn; //0 -> Stay | 1-> Hit
+public:
+	PlayerCardDrawnMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_CARD_DRAWN), m_CardDrawn(0) {}
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
+
 
 class PlayerChatMessage : public NetworkMessage
 {

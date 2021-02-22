@@ -80,7 +80,14 @@ void handleUpdate(ServerState* ss)
 {
 	for (int i = 0; i < ss->m_InputEventCache.size(); i++)
 	{
+		if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_InputEventCache[i]))
+		{
 
+		}
+		if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_InputEventCache[i]))
+		{
+
+		}
 	}
 	
 }
