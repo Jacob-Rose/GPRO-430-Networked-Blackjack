@@ -32,7 +32,7 @@ bool PlayerMoveMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 	return true;
 }
 
-void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMessage*>& msgQueue)
+void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, RakNet::SystemAddress sender, std::vector<NetworkMessage*>& msgQueue)
 {
 	RakNet::MessageID id;
 	bs->Read(id); //now for each message constructor, THE MESSAGE IS TRIMMED OFF THE FRONT, SO THE READ DOES NOT NEED TO ADDRESS THIS MESSAGE ID WE ALREADY KNOW
@@ -62,6 +62,11 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 				msg = new PlayerMoveMessage();
 				break;
 			}
+			case ID_PLAYER_CARD_DRAWN:
+			{
+				msg = new PlayerCardDrawnMessage();
+				break;
+			}
 			case ID_PLAYER_CHAT:
 			{
 				msg = new PlayerChatMessage();
@@ -78,6 +83,7 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 				break;
 			}
 		}
+		msg->m_Sender = sender;
 		msg->ReadPacketBitstream(bs);
 		msgQueue.push_back(msg);
 	}
@@ -121,6 +127,16 @@ bool PlayerChatMessage::ReadPacketBitstream(RakNet::BitStream* bs)
 	return true;
 }
 
+bool PlayerSpectatorChoiceMessage::WritePacketBitstream(RakNet::BitStream* bs)
+{
+	return false;
+}
+
+bool PlayerSpectatorChoiceMessage::ReadPacketBitstream(RakNet::BitStream* bs)
+{
+	return false;
+}
+
 bool PlayerActiveOrderMessage::WritePacketBitstream(RakNet::BitStream* bs)
 {
 	bs->Write(m_MessageID);
@@ -157,5 +173,18 @@ bool PlayerCardDrawnMessage::WritePacketBitstream(RakNet::BitStream* bs)
 	bs->Write(m_MessageID);
 	bs->Write(m_Player);
 	bs->Write(m_CardDrawn);
+	return true;
+}
+
+bool PlayerJoinGameRequestMessage::WritePacketBitstream(RakNet::BitStream* bs)
+{
+	bs->Write(m_MessageID);
+	bs->Write(m_GameIndex);
+	return true;
+}
+
+bool PlayerJoinGameRequestMessage::ReadPacketBitstream(RakNet::BitStream* bs)
+{
+	bs->Read(m_GameIndex);
 	return true;
 }

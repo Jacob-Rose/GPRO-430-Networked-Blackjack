@@ -55,8 +55,11 @@ struct ServerState
 {
 	// not much need for anything else rn
 	RakNet::RakPeerInterface* m_Peer;
-	std::vector<NetworkMessage*> m_InputEventCache;
+	std::vector<NetworkMessage*> m_InputEventCache; //filed in input
+	std::vector<NetworkMessage*> m_OutputEventCache; //filled in update
 	std::vector<BlackjackState> m_ActiveGames;
+
+	std::vector<RakNet::SystemAddress> m_LobbyPlayers; //players who havent joined a game yet
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames; //we store everyones (even outside our current game) to ensure its constant after we leave
 
@@ -72,7 +75,7 @@ void handleInput(ServerState* ss)
 	for (packet = ss->m_Peer->Receive(); packet; ss->m_Peer->DeallocatePacket(packet), packet = ss->m_Peer->Receive())
 	{
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
-		NetworkMessage::DecypherPacket(&bsIn, ss->m_InputEventCache);
+		NetworkMessage::DecypherPacket(&bsIn, packet->systemAddress, ss->m_InputEventCache);
 		//yup, thats it in the input step
 	}
 }
@@ -81,13 +84,38 @@ void handleUpdate(ServerState* ss)
 {
 	for (int i = 0; i < ss->m_InputEventCache.size(); i++)
 	{
-		if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_InputEventCache[i]))
+		if (DisplayNameChangeMessage* msg = dynamic_cast<DisplayNameChangeMessage*>(ss->m_InputEventCache[i]))
+		{
+			ss->m_DisplayNames[msg->m_Sender] = msg->m_UpdatedDisplayName;
+			ss->m_OutputEventCache.push_back(msg);
+		}
+		else if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_InputEventCache[i]))
 		{
 
 		}
-		if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_InputEventCache[i]))
+		else if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_InputEventCache[i]))
 		{
 
+		}
+		else if (NotificationMessage* msg = dynamic_cast<NotificationMessage*>(ss->m_InputEventCache[i]))
+		{
+			switch (msg->m_MessageID)
+			{
+				case ID_NEW_INCOMING_CONNECTION:
+				case ID_REMOTE_NEW_INCOMING_CONNECTION:
+				{
+					//todo player joined, make them join lobby
+					break;
+				}
+				case ID_CONNECTION_LOST:
+				case ID_DISCONNECTION_NOTIFICATION:
+				case ID_REMOTE_DISCONNECTION_NOTIFICATION:
+				case ID_REMOTE_CONNECTION_LOST:
+				{
+					//todo player disconnected
+					break;
+				}
+			}
 		}
 	}
 	
@@ -95,7 +123,55 @@ void handleUpdate(ServerState* ss)
 
 void handleOutput(ServerState* ss)
 {
+	for (int i = 0; i < ss->m_OutputEventCache.size(); i++)
+	{
+		if (DisplayNameChangeMessage* msg = dynamic_cast<DisplayNameChangeMessage*>(ss->m_OutputEventCache[i]))
+		{
+			//GLOBALLY SET
+			RakNet::BitStream bs;
+			msg->WritePacketBitstream(&bs);
+			ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, msg->m_Sender, true);
+		}
+		else if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_OutputEventCache[i]))
+		{
+			//SENT PER ROOM
+			RakNet::BitStream bs;
+			msg->WritePacketBitstream(&bs);
 
+			short activeGame = -1;
+			for (int i = 0; i < ss->m_ActiveGames.size(); i++)
+			{
+				for (int j = 0; j < ss->m_ActiveGames[i].m_ActivePlayers.size(); j++)
+				{
+					if (ss->m_ActiveGames[i].m_ActivePlayers[j].m_Address == msg->m_Sender)
+					{
+						activeGame = i;
+						goto foundPlayersGame; //we cant use break here, this feels gross though
+					}
+				}
+			}
+			foundPlayersGame:
+			//send to everyone in that game specifically
+			if (activeGame != -1)
+			{
+				for (int j = 0; j < ss->m_ActiveGames[activeGame].m_ActivePlayers.size(); j++)
+				{
+					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_ActiveGames[activeGame].m_ActivePlayers[j].m_Address, false);
+				}
+			}
+			else
+			{
+
+			}
+
+
+			
+		}
+		else if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_OutputEventCache[i]))
+		{
+
+		}
+	}
 }
 
 int main(void)

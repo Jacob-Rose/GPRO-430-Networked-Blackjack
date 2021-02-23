@@ -22,6 +22,7 @@ enum GameMessageID
 	ID_DISPLAY_NAME_UPDATED,
 	ID_PLAYER_MOVE,
 	ID_PLAYER_CARD_DRAWN,
+	ID_PLAYER_JOIN_GAME_REQUEST,
 	ID_PLAYER_CHAT,
 	ID_PLAYER_SPECTATOR_CHOICE,
 	ID_GAME_START,
@@ -49,9 +50,12 @@ struct BlackjackState
 class NetworkMessage
 {
 protected:
-	const RakNet::MessageID m_MessageID;
-
 	NetworkMessage(RakNet::MessageID id) : m_MessageID(id) {}
+public:
+	const RakNet::MessageID m_MessageID;
+	RakNet::SystemAddress m_Sender;
+
+
 public:
 	virtual bool WritePacketBitstream(RakNet::BitStream* bs) = 0; 
 	virtual bool ReadPacketBitstream(RakNet::BitStream* bs) = 0; //all messages should assume the messageid has already been read in and the read index is moved past it
@@ -59,11 +63,8 @@ public:
 
 	//We push back each message onto the msgQueue
 	//NOTE! All messages will be dynamically allocated
-	static void DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMessage*>& msgQueue);
+	static void DecypherPacket(RakNet::BitStream* bs, RakNet::SystemAddress sender, std::vector<NetworkMessage*>& msgQueue);
 	static void CreatePacketHeader(RakNet::BitStream* bs, int msgCount);
-
-
-	//friend RakNet::BitStream& operator<<(RakNet::BitStream& bsp, NetworkMessage& msg);
 };
 
 
@@ -84,6 +85,7 @@ public:
 //Holds the timestamp, may need to be moved to the packet header
 class TimestampMessage : public NetworkMessage
 {
+public:
 	RakNet::Time m_Time;
 
 public:
@@ -98,7 +100,7 @@ public:
 //Display Name Changed
 class DisplayNameChangeMessage : public NetworkMessage
 {
-	RakNet::SystemAddress m_Sender;
+public:
 	RakNet::RakString m_UpdatedDisplayName;
 
 public:
@@ -112,7 +114,7 @@ public:
 
 class PlayerSpectatorChoiceMessage : public NetworkMessage
 {
-	RakNet::SystemAddress m_Sender;
+public:
 	bool m_Spectating;
 public:
 	PlayerSpectatorChoiceMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_SPECTATOR_CHOICE), m_Spectating(false) {}
@@ -125,6 +127,7 @@ public:
 //Holds all information about the player move
 class PlayerMoveMessage : public NetworkMessage
 {
+public:
 	RakNet::SystemAddress m_Player;
 	short m_PlayerMove; //0 -> Stay | 1-> Hit
 
@@ -138,6 +141,7 @@ public:
 //mostly sent to players
 class PlayerCardDrawnMessage : public NetworkMessage 
 {
+public:
 	RakNet::SystemAddress m_Player; //UNASSINGED_SYSTEM_ADDRESS = SERVER
 	short m_CardDrawn; 
 public:
@@ -151,8 +155,7 @@ public:
 
 class PlayerChatMessage : public NetworkMessage
 {
-
-	RakNet::SystemAddress m_Sender;
+public:
 	RakNet::SystemAddress m_Receiver;
 	std::string m_Message; //converts to RakNet::RakString and back
 public:
@@ -162,10 +165,22 @@ public:
 	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
 };
 
+class PlayerJoinGameRequestMessage : public NetworkMessage
+{
+public:
+	short m_GameIndex; //-1 = quit to lobby
+public:
+	PlayerJoinGameRequestMessage() : NetworkMessage((RakNet::MessageID)ID_PLAYER_JOIN_GAME_REQUEST), m_GameIndex(-1) { }
+
+	bool WritePacketBitstream(RakNet::BitStream* bs) override;
+	bool ReadPacketBitstream(RakNet::BitStream* bs) override;
+};
+
 
 //Send at start each time
 class PlayerActiveOrderMessage : public NetworkMessage
 {
+public:
 	std::vector<RakNet::SystemAddress> m_ActivePlayers;
 	std::vector<RakNet::SystemAddress> m_SpectatingPlayers;
 public:
