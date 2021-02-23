@@ -35,6 +35,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <numeric>
 
 //RakNet
 #include <RakNet/RakPeerInterface.h>
@@ -49,8 +50,8 @@
 
 #define MAX_MESSAGES_TO_STORE 10
 
-
-
+//Global BlackjackState
+BlackjackState bjs[1] = { };
 
 struct GameState
 {
@@ -93,14 +94,25 @@ void handleInputRemote(GameState* gs)
 	{
 		RakNet::BitStream bsIn(packet->data, packet->length, false);
 
-		NetworkMessage::DecypherPacket(&bsIn, gs->m_ServerMessageQueue);
+		NetworkMessage::DecypherPacket(&bsIn, packet->systemAddress, gs->m_ServerMessageQueue);
 		//yup, thats it in the input step
 	}
 }
 
 void handleUpdate(GameState* gs)
 {
+	//Recieve PlayerCardDrawnMessage
+	//AddCardToPlayer(playerAddress, cardDrawn);
+	//DisplayHands(gs)
 
+	//Recieve message to get the client know they can act
+	//PlayerTurn();
+
+	//Recieve message to let people know the game is over
+	//GetResults()
+
+	//Recieve PlayerActiveOrderMessage
+	//AskIfPlayerOrSpectator()
 }
 
 //Note: we dont use const here as we move the message from unhandeled to handled.
@@ -113,6 +125,159 @@ void handleOutputRemote(GameState* gs)
 void handleOutputLocal(const GameState* gs)
 {
 
+}
+
+//Ask the client if they wish to play again
+void AskIfPlayerOrSpectator()
+{
+
+}
+
+//Gets the totals of hands and see who won, lost, and tied
+void GetResults()
+{
+	//Get total of dealer hand
+	int totalOfDealer = std::accumulate(bjs->m_DealerCards.begin(), bjs->m_DealerCards.end(), decltype(bjs->m_DealerCards)::value_type(0));
+
+
+	//Loop over all players and get total
+	//Decide who wins
+
+	for (int i = 0; i < bjs->m_ActivePlayers.size(); i++)
+	{
+		int total = std::accumulate(bjs->m_ActivePlayers[i].m_Cards.begin(), bjs->m_ActivePlayers[i].m_Cards.end(), decltype(bjs->m_ActivePlayers[i].m_Cards)::value_type(0));
+
+		//Decide victory
+		//Above 21 means lose
+		//Who ever is higher wins
+		//If same then tie
+
+
+		//Based on what the outcome is, construct a string to cout
+		if ((totalOfDealer > 21 && total > 21) || totalOfDealer == total)
+		{
+			//If both bust or totals are equal
+			//It is a tie
+		}
+		else if (totalOfDealer > 21 && total < 21)
+		{
+			//if dealer busts and player did not
+			//Player Wins
+		}
+		else if (total > 21 && totalOfDealer < 21)
+		{
+			//If player busts and dealer did not
+			//Dealer wins
+		}
+		else if (total > totalOfDealer)
+		{
+			//If player total is higher than dealer
+			//Player wins
+		}
+		else if (totalOfDealer > total)
+		{
+			//If Dealer total is higher than dealer
+			//Dealer wins
+		}
+		else
+		{
+			//If it reaches here, something went wrong
+		}
+	}
+}
+
+//What happens on the players turn
+void PlayerTurn()
+{
+	//Ask the user if hit or stand
+	//AskUserForMove()
+}
+
+//This will ask the user for a move
+void AskUserForMove()
+{
+	bool validChoice = false;
+	//Will ask either Hit or Stand
+	//Sends a PlayerMoveMessage with 0 or 1 depending on the move
+	while (!validChoice)
+	{
+		std::cout << "Would you like to (H)it or (S)tand? " << '\n';
+		std::string input = getUserInput();
+
+		if (input == "h")
+		{
+			//Player wants to Hit
+			//Send a PlayerMoveMessage with 0
+		}
+		else if (input == "s")
+		{
+			//Player wants to Stand
+			//Send a PlayerMoveMessage with 1
+		}
+		else
+		{
+			std::cout << "Invalid Entry, please try again" << '\n';
+		}
+	}
+
+	return;
+}
+
+//Shows all of the hands to the client
+void DisplayHands(const GameState* gs)
+{
+
+	int i = 0, j = 0;
+	std::string output;
+
+	output = "Dealer: ";
+	//Show dealers cards first so they are always at the top
+	for (i = 0; i < bjs->m_DealerCards.size(); i++)
+	{
+		output += std::to_string(bjs->m_DealerCards[i]) + " ";
+	}
+	std::cout << output << '\n';
+
+	for (i = 0; i < bjs->m_ActivePlayers.size(); i++)
+	{
+		//Show hands coupled with nickname via m_DisplayNames
+
+		//TODO
+		//Getting the data from the map is not cooperating
+		output = "";
+		//RakNet::SystemAddress ad = bjs->m_ActivePlayers[i].m_Address;
+		//output = gs->m_DisplayNames[ad] + ": ";
+
+		for (int j = 0; j < bjs->m_ActivePlayers[i].m_Cards.size(); j++)
+		{
+			output += std::to_string(bjs->m_ActivePlayers[i].m_Cards[i]) + " ";
+		}
+	}
+}
+
+//Adds a card to a given player
+void AddCardToPlayer(RakNet::SystemAddress playerAddress, int cardDrawn)
+{
+	//TODO
+	//Currently the dealer uses a different vector
+	//Either way we need to check if this player is the dealer
+
+	//Iterate thorough m_ActivePlayers and check if m_Address exists
+	for (int i = 0; i < bjs->m_ActivePlayers.size(); ++i)
+	{
+		//if exists, add card to vector
+		if (bjs->m_ActivePlayers[i].m_Address == playerAddress)
+		{
+			bjs->m_ActivePlayers[i].m_Cards.push_back(cardDrawn);
+			return;
+		}
+	}
+	//if not exists, create new PlayerStruct and add card to vector
+	BlackjackState::PlayerState ps;
+	ps.m_Address = playerAddress;
+	ps.m_Cards.push_back(cardDrawn);
+
+	bjs->m_ActivePlayers.push_back(ps);
 }
 
 void DisplayHands(std::vector<int> p1, std::vector<int> dealer)
@@ -149,60 +314,74 @@ bool CheckHand(std::vector<int> hand)
 {
 	return getSum(hand) > 21;
 }
+
+void ClearBlackjackState(BlackjackState& bjs)
+{
+	bjs.m_ActivePlayers.clear();
+	bjs.m_DealerCards.clear();
+	bjs.m_SpectatingPlayers.clear();
+
+}
+
 int main(void)
 {
 	//for us
 
-   
-   GameState gs[1] = { 0 };
-   BlackjackState bjs[1] = { };
 
-   const unsigned short SERVER_PORT = 7777;
-   const char* SERVER_IP = "172.16.2.57"; //update every time
+	GameState gs[1] = { 0 };
 
-   gs->m_Peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
+	const unsigned short SERVER_PORT = 7777;
+	const char* SERVER_IP = "172.16.2.57"; //update every time
 
-   std::string displayName;
-   std::string serverIp;
-   if (!gs->m_Debug)
-   {
+	gs->m_Peer = RakNet::RakPeerInterface::GetInstance(); //set up peer
 
-	   printf("Enter Display Name for server: ");
-	   gs->m_LocalDisplayName = getUserInput();
+	std::string displayName;
+	std::string serverIp;
+	if (!gs->m_Debug)
+	{
 
-	   printf("Enter IP Address for server: ");
-	   serverIp = getUserInput();
+		printf("Enter Display Name for server: ");
+		gs->m_LocalDisplayName = getUserInput();
 
-
-   }
-   else
-   {
-	   serverIp = SERVER_IP;
-	   gs->m_LocalDisplayName = "D Client";
-   }
-
-   RakNet::SocketDescriptor sd;
-   gs->m_Peer->Startup(1, &sd, 1);
-   gs->m_Peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
+		printf("Enter IP Address for server: ");
+		serverIp = getUserInput();
 
 
-   while (1)
-   {
-	   //input
-	   handleInputLocal(gs);
-	   //receive and merge
-	   handleInputRemote(gs);
-	   //update
-	   handleUpdate(gs);
-	   //package & send
-	   handleOutputRemote(gs);
-	   //output
-	   handleOutputLocal(gs);
-   }
+	}
+	else
+	{
+		serverIp = SERVER_IP;
+		gs->m_LocalDisplayName = "D Client";
+	}
+
+	RakNet::SocketDescriptor sd;
+	gs->m_Peer->Startup(1, &sd, 1);
+	gs->m_Peer->Connect(SERVER_IP, SERVER_PORT, 0, 0);
 
 
-    RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
-   
+	while (1)
+	{
+		//input
+		handleInputLocal(gs);
+		//receive and merge
+		handleInputRemote(gs);
+		//update
+		handleUpdate(gs);
+		//package & send
+		handleOutputRemote(gs);
+		//output
+		handleOutputLocal(gs);
+	}
+
+
+	RakNet::RakPeerInterface::DestroyInstance(gs->m_Peer);
+
+
+	//Starting the game
+	//Clear BlackjackState
+	ClearBlackjackState(*bjs);
+
+	//We can fill out m_ActivePlayers as we recieve cards from players
 
 	bool turnOver = false;
 	bool isRunning = true;

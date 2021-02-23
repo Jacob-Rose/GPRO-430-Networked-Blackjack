@@ -124,6 +124,8 @@ void handleUpdate(ServerState* ss)
 				{
 					//todo player joined, make them join lobby
 					ss->m_LobbyPlayers.push_back(msg->m_Sender);
+
+					//Once they join a lobby send PlayerActiveOrderMessage to check if player or spectator
 					break;
 				}
 				case ID_CONNECTION_LOST:
