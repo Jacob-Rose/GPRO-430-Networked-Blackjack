@@ -80,6 +80,24 @@ void handleInput(ServerState* ss)
 	}
 }
 
+int findGamePlayerIsIn(RakNet::SystemAddress address, ServerState* ss)
+{
+	short activeGame = -1;
+	for (int i = 0; i < ss->m_ActiveGames.size(); i++)
+	{
+		for (int j = 0; j < ss->m_ActiveGames[i].m_ActivePlayers.size(); j++)
+		{
+			if (ss->m_ActiveGames[i].m_ActivePlayers[j].m_Address == address)
+			{
+				activeGame = i;
+				goto foundPlayersGame; //we cant use break here, this feels gross though
+			}
+		}
+	}
+foundPlayersGame:
+	return activeGame;
+}
+
 void handleUpdate(ServerState* ss)
 {
 	for (int i = 0; i < ss->m_InputEventCache.size(); i++)
@@ -105,6 +123,7 @@ void handleUpdate(ServerState* ss)
 				case ID_REMOTE_NEW_INCOMING_CONNECTION:
 				{
 					//todo player joined, make them join lobby
+					ss->m_LobbyPlayers.push_back(msg->m_Sender);
 					break;
 				}
 				case ID_CONNECTION_LOST:
@@ -130,38 +149,30 @@ void handleOutput(ServerState* ss)
 			//GLOBALLY SET
 			RakNet::BitStream bs;
 			msg->WritePacketBitstream(&bs);
-			ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, msg->m_Sender, true);
+			ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, msg->m_Sender, true); //broadcast it to everyone
 		}
 		else if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_OutputEventCache[i]))
 		{
+			//PER GAME OR IN LOBBY
+			int gameIndex = findGamePlayerIsIn(msg->m_Sender, ss);
 			//SENT PER ROOM
 			RakNet::BitStream bs;
 			msg->WritePacketBitstream(&bs);
 
-			short activeGame = -1;
-			for (int i = 0; i < ss->m_ActiveGames.size(); i++)
-			{
-				for (int j = 0; j < ss->m_ActiveGames[i].m_ActivePlayers.size(); j++)
-				{
-					if (ss->m_ActiveGames[i].m_ActivePlayers[j].m_Address == msg->m_Sender)
-					{
-						activeGame = i;
-						goto foundPlayersGame; //we cant use break here, this feels gross though
-					}
-				}
-			}
-			foundPlayersGame:
 			//send to everyone in that game specifically
-			if (activeGame != -1)
+			if (gameIndex != -1)
 			{
-				for (int j = 0; j < ss->m_ActiveGames[activeGame].m_ActivePlayers.size(); j++)
+				for (int j = 0; j < ss->m_ActiveGames[gameIndex].m_ActivePlayers.size(); j++)
 				{
-					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_ActiveGames[activeGame].m_ActivePlayers[j].m_Address, false);
+					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_ActiveGames[gameIndex].m_ActivePlayers[j].m_Address, false);
 				}
 			}
 			else
 			{
-
+				for (int j = 0; j < ss->m_LobbyPlayers.size(); j++)
+				{
+					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_LobbyPlayers[j], false);
+				}
 			}
 
 
@@ -169,7 +180,8 @@ void handleOutput(ServerState* ss)
 		}
 		else if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_OutputEventCache[i]))
 		{
-
+			//PER GAME OR IN LOBBY
+			int gameIndex = findGamePlayerIsIn(msg->m_Sender, ss);
 		}
 	}
 }
