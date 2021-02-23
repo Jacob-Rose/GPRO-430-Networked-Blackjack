@@ -45,50 +45,41 @@ void NetworkMessage::DecypherPacket(RakNet::BitStream* bs, std::vector<NetworkMe
 	}
 	for (int i = 0; i < idCount; i++)
 	{
-
+		NetworkMessage* msg;
 		switch (id) {
 			case ID_TIMESTAMP:
 			{
-				TimestampMessage* msg = new TimestampMessage();
-				msg->ReadPacketBitstream(bs);
-				msgQueue.push_back(msg);
+				msg = new TimestampMessage();
 				break;
 			}
 			case ID_DISPLAY_NAME_UPDATED:
 			{
-				DisplayNameChangeMessage* msg = new DisplayNameChangeMessage();
-				msg->ReadPacketBitstream(bs);
-				msgQueue.push_back(msg);
+				msg = new DisplayNameChangeMessage();
 				break;
 			}
 			case ID_PLAYER_MOVE:
 			{
-				PlayerMoveMessage* msg = new PlayerMoveMessage();
-				msg->ReadPacketBitstream(bs);
-				msgQueue.push_back(msg);
+				msg = new PlayerMoveMessage();
 				break;
 			}
 			case ID_PLAYER_CHAT:
 			{
-				PlayerChatMessage* msg = new PlayerChatMessage();
-				msg->ReadPacketBitstream(bs);
-				msgQueue.push_back(msg);
+				msg = new PlayerChatMessage();
 				break;
 			}
 			case ID_ACTIVE_PLAYER_ORDER:
 			{
-				PlayerActiveOrderMessage* msg = new PlayerActiveOrderMessage();
-				msg->ReadPacketBitstream(bs);
-				msgQueue.push_back(msg);
+				msg = new PlayerActiveOrderMessage();
 				break;
 			}
 			default:
 			{
-				NotificationMessage* msg = new NotificationMessage(id);
-				msgQueue.push_back(msg);
+				msg = new NotificationMessage(id);
 				break;
 			}
 		}
+		msg->ReadPacketBitstream(bs);
+		msgQueue.push_back(msg);
 	}
 }
 
