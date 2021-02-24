@@ -44,6 +44,8 @@ struct BlackjackState
 	std::vector<PlayerState> m_ActivePlayers;
 	std::vector<int> m_DealerCards;
 	std::vector<RakNet::SystemAddress> m_SpectatingPlayers; //no cards
+
+	short m_CurrentPlayerTurn = 0;
 };
 
 

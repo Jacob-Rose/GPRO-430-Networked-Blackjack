@@ -30,6 +30,7 @@
 #include <iostream>
 #include <fstream>
 #include <list>
+#include <algorithm>
 #include <map>
 
 //RakNet
@@ -43,12 +44,14 @@
 #include "gpro-net/shared-net.h"
 #include "Deck.h"
 
+#define NUM_GAMES 3
 
-struct ServerBlackjackState
+struct ServerBlackjackState : public BlackjackState
 {
 	//Blackjack data only the server should access
 	Deck deck;
 	int currentPlayerTurn = 0; 
+	float m_TimeSinceRoundStart = 0.0f; //used for timing the playerspectatormessage from all players
 };
 
 struct ServerState 
@@ -57,12 +60,12 @@ struct ServerState
 	RakNet::RakPeerInterface* m_Peer;
 	std::vector<NetworkMessage*> m_InputEventCache; //filed in input
 	std::vector<NetworkMessage*> m_OutputEventCache; //filled in update
-	std::vector<BlackjackState> m_ActiveGames;
+	ServerBlackjackState m_ActiveGames[NUM_GAMES];
 
 	std::vector<RakNet::SystemAddress> m_LobbyPlayers; //players who havent joined a game yet
 
 	std::map<RakNet::SystemAddress, std::string> m_DisplayNames; //we store everyones (even outside our current game) to ensure its constant after we leave
-
+	float m_LastIimeRecorded;
 
 	std::string saveFilePath = "ServerMessageCache.txt"; //this creates a file on the VDI which gets wiped but for testing purposes this works
 	std::ofstream msgSaver;
@@ -80,26 +83,43 @@ void handleInput(ServerState* ss)
 	}
 }
 
-int findGamePlayerIsIn(RakNet::SystemAddress address, ServerState* ss)
+void findGamePlayerIsIn(RakNet::SystemAddress address, ServerState* ss, int& gameIndex, int& playerIndex, bool& playerSpectating)
 {
-	short activeGame = -1;
-	for (int i = 0; i < ss->m_ActiveGames.size(); i++)
+	for (int i = 0; i < NUM_GAMES; i++)
 	{
 		for (int j = 0; j < ss->m_ActiveGames[i].m_ActivePlayers.size(); j++)
 		{
 			if (ss->m_ActiveGames[i].m_ActivePlayers[j].m_Address == address)
 			{
-				activeGame = i;
-				goto foundPlayersGame; //we cant use break here, this feels gross though
+				playerIndex = j;
+				gameIndex = i;
+				playerSpectating = false;
+				return;
+			}
+		}
+		for (int j = 0; j < ss->m_ActiveGames[i].m_ActivePlayers.size(); j++)
+		{
+			if (ss->m_ActiveGames[i].m_SpectatingPlayers[j] == address)
+			{
+				playerIndex = j;
+				gameIndex = i;
+				playerSpectating = true;
+				return;
 			}
 		}
 	}
-foundPlayersGame:
-	return activeGame;
+	playerIndex = -1;
+	gameIndex = -1;
+	playerSpectating = true;
+	return;
 }
 
 void handleUpdate(ServerState* ss)
 {
+	for (int i = 0; i < NUM_GAMES; i++)
+	{
+		//we need deltatime
+	}
 	for (int i = 0; i < ss->m_InputEventCache.size(); i++)
 	{
 		if (DisplayNameChangeMessage* msg = dynamic_cast<DisplayNameChangeMessage*>(ss->m_InputEventCache[i]))
@@ -109,10 +129,56 @@ void handleUpdate(ServerState* ss)
 		}
 		else if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_InputEventCache[i]))
 		{
-
+			int playerIndex, playerGameIndex;
+			bool playerSpectating;
+			findGamePlayerIsIn(msg->m_Sender, ss, playerGameIndex, playerIndex, playerSpectating);
+			ss->m_OutputEventCache.push_back(msg);
 		}
 		else if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_InputEventCache[i]))
 		{
+			//draw card
+			int playerIndex, playerGameIndex;
+			bool playerSpectating;
+			findGamePlayerIsIn(msg->m_Sender, ss, playerGameIndex, playerIndex, playerSpectating);
+			if (playerGameIndex != -1)
+			{
+				PlayerCardDrawnMessage* newMsg = new PlayerCardDrawnMessage();
+				int card = ss->m_ActiveGames[playerGameIndex].deck.getNextCard();
+				newMsg->m_CardDrawn = card;
+				newMsg->m_Player = msg->m_Sender;
+				newMsg->m_Sender = RakNet::UNASSIGNED_SYSTEM_ADDRESS;
+				ss->m_OutputEventCache.push_back(newMsg);
+			}
+
+
+		}
+		else if (PlayerSpectatorChoiceMessage* msg = dynamic_cast<PlayerSpectatorChoiceMessage*>(ss->m_InputEventCache[i]))
+		{
+			//add to active or spectating player pool
+			int playerIndex, playerGameIndex;
+			bool playerSpectating;
+			findGamePlayerIsIn(msg->m_Sender, ss, playerGameIndex, playerIndex, playerSpectating);
+			
+		}
+		else if (PlayerJoinGameRequestMessage* msg = dynamic_cast<PlayerJoinGameRequestMessage*>(ss->m_InputEventCache[i]))
+		{
+			//todo add them to the game, remove from lobby
+			int playerIndex, playerGameIndex;
+			bool playerSpectating;
+			findGamePlayerIsIn(msg->m_Sender, ss, playerGameIndex, playerIndex, playerSpectating);
+			if (playerGameIndex >= 0 && msg->m_GameIndex != -1)
+			{
+				for (int i = 0; i < ss->m_ActiveGames[playerGameIndex].m_ActivePlayers.size(); i++)
+				{
+
+				}
+			}
+			else if (playerGameIndex == -1 && msg->m_GameIndex >= 0)
+			{
+				ss->m_LobbyPlayers.erase(std::find(ss->m_LobbyPlayers.begin(), ss->m_LobbyPlayers.end(), msg->m_Sender));
+				ss->m_ActiveGames[msg->m_GameIndex].m_SpectatingPlayers.push_back(msg->m_Sender);
+			}
+			
 
 		}
 		else if (NotificationMessage* msg = dynamic_cast<NotificationMessage*>(ss->m_InputEventCache[i]))
@@ -138,7 +204,9 @@ void handleUpdate(ServerState* ss)
 				}
 			}
 		}
+		delete ss->m_InputEventCache[i];
 	}
+	ss->m_InputEventCache.clear();
 	
 }
 
@@ -156,17 +224,19 @@ void handleOutput(ServerState* ss)
 		else if (PlayerChatMessage* msg = dynamic_cast<PlayerChatMessage*>(ss->m_OutputEventCache[i]))
 		{
 			//PER GAME OR IN LOBBY
-			int gameIndex = findGamePlayerIsIn(msg->m_Sender, ss);
+			int playerIndex, playerGameIndex;
+			bool playerSpectating;
+			findGamePlayerIsIn(msg->m_Sender, ss, playerGameIndex, playerIndex, playerSpectating);
 			//SENT PER ROOM
 			RakNet::BitStream bs;
 			msg->WritePacketBitstream(&bs);
 
 			//send to everyone in that game specifically
-			if (gameIndex != -1)
+			if (playerGameIndex != -1)
 			{
-				for (int j = 0; j < ss->m_ActiveGames[gameIndex].m_ActivePlayers.size(); j++)
+				for (int j = 0; j < ss->m_ActiveGames[playerGameIndex].m_ActivePlayers.size(); j++)
 				{
-					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_ActiveGames[gameIndex].m_ActivePlayers[j].m_Address, false);
+					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_ActiveGames[playerGameIndex].m_ActivePlayers[j].m_Address, false);
 				}
 			}
 			else
@@ -183,7 +253,25 @@ void handleOutput(ServerState* ss)
 		else if (PlayerMoveMessage* msg = dynamic_cast<PlayerMoveMessage*>(ss->m_OutputEventCache[i]))
 		{
 			//PER GAME OR IN LOBBY
-			int gameIndex = findGamePlayerIsIn(msg->m_Sender, ss);
+			int playerIndex, playerGameIndex;
+			bool playerSpectating;
+			findGamePlayerIsIn(msg->m_Sender, ss, playerGameIndex, playerIndex, playerSpectating);
+
+			RakNet::BitStream bs;
+			msg->WritePacketBitstream(&bs);
+
+			//send to everyone in that game specifically
+			if (playerGameIndex != -1)
+			{
+				for (int j = 0; j < ss->m_ActiveGames[playerGameIndex].m_ActivePlayers.size(); j++)
+				{
+					ss->m_Peer->Send(&bs, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, ss->m_ActiveGames[playerGameIndex].m_ActivePlayers[j].m_Address, false);
+				}
+			}
+			else
+			{
+				//what u doing bro, how did you send this in the lobby
+			}
 		}
 	}
 }
