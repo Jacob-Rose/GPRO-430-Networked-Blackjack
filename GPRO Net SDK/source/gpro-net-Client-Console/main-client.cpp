@@ -76,9 +76,9 @@ int testUtility()
 
 int main(int const argc, char const* const argv[])
 {
-	testUtility();
+	//testUtility();
 
-	testPlugin();
+	//testPlugin();
 
 	gproNet::cRakNetClient client;
 

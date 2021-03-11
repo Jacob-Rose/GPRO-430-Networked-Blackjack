@@ -30,6 +30,8 @@
 #include "gpro-net/gpro-net/gpro-net-RakNet.hpp"
 
 #include <vector>
+#include <fstream>
+#include <string>
 
 
 namespace gproNet
@@ -39,8 +41,6 @@ namespace gproNet
 	enum eMessageServer
 	{
 		ID_GPRO_MESSAGE_SERVER_BEGIN = ID_GPRO_MESSAGE_COMMON_END,
-
-
 
 		ID_GPRO_MESSAGE_SERVER_END
 	};
@@ -70,13 +70,20 @@ namespace gproNet
 		//		return: was message processed
 		virtual bool ProcessMessage(RakNet::BitStream& bitstream, RakNet::SystemAddress const sender, RakNet::Time const dtSendToReceive, RakNet::MessageID const msgID);
 	};
+	struct GameServerInfo
+	{
+		RakNet::SystemAddress address;
+		short port;
+	};
 
-	class cRakNetMasterServer : public cRakNetServer
+	class cRakNetMasterServer : public cRakNetManager //we extend the manager as the cRakNetServer might contain game information that we do not need to store.
 	{
 	public:
-
+		cRakNetMasterServer(std::string outputFilePath) : logOutput(outputFilePath) { }
 	protected:
-		std::vector<RakNet::SystemAddress> m_GameServers;
+		std::vector<GameServerInfo> m_GameServers;
+		virtual bool ProcessMessage(RakNet::BitStream& bitstream, RakNet::SystemAddress const sender, RakNet::Time const dtSendToReceive, RakNet::MessageID const msgID);
+		std::ofstream logOutput;
 	};
 
 }

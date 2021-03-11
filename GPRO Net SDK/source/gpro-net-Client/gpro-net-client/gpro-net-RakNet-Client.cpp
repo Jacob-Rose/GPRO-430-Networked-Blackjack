@@ -73,9 +73,33 @@ namespace gproNet
 		{
 			// client connects to server, send greeting
 			RakNet::BitStream bitstream_w;
-			WriteTest(bitstream_w, "Hello server from client");
-			peer->Send(&bitstream_w, MEDIUM_PRIORITY, UNRELIABLE_SEQUENCED, 0, sender, false);
+
+			if (m_IsOnMaster)
+			{
+				//do x, y z
+			}
+			else
+			{
+				//do a, b, c
+			}
+			//WriteTest(bitstream_w, "Hello server from client");
+			//peer->Send(&bitstream_w, MEDIUM_PRIORITY, UNRELIABLE_SEQUENCED, 0, sender, false);
 		}	return true;
+
+		case ID_GPRO_MESSAGE_GAME_SERVER_IP:
+		{
+
+			RakNet::SystemAddress address;
+			short port;
+			bitstream.Read(address);
+			bitstream.Read(port);
+
+			//disconnect
+			peer->Shutdown(0);
+			peer->Connect(address.ToString(), port, 0, 0);
+			m_IsOnMaster = false;
+			//init reconnect sequence to new address
+		}
 
 			// test message
 		case ID_GPRO_MESSAGE_COMMON_BEGIN:

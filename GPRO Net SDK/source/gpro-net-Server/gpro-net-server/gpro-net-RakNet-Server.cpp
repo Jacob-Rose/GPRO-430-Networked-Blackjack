@@ -75,4 +75,41 @@ namespace gproNet
 		}
 		return false;
 	}
+
+	bool cRakNetMasterServer::ProcessMessage(RakNet::BitStream& bitstream, RakNet::SystemAddress const sender, RakNet::Time const dtSendToReceive, RakNet::MessageID const msgID)
+	{
+		if (cRakNetManager::ProcessMessage(bitstream, sender, dtSendToReceive, msgID))
+			return true;
+
+		RakNet::BitStream bsOut;
+		// server-specific messages
+		switch (msgID)
+		{
+		case ID_NEW_INCOMING_CONNECTION:
+			//printf("A connection is incoming.\n");
+			
+			int gameServerIndex = rand() % m_GameServers.size();
+			bsOut.Write((RakNet::MessageID)ID_GPRO_MESSAGE_GAME_SERVER_IP);
+			bsOut.Write(m_GameServers[gameServerIndex].address);
+			bsOut.Write(m_GameServers[gameServerIndex].port);
+
+			logOutput << sender.ToString() << " connected, sent to " << m_GameServers[gameServerIndex].address.ToString() << ":" << m_GameServers[gameServerIndex].port << std::endl;
+
+			peer->Send(&bsOut, PacketPriority::HIGH_PRIORITY, PacketReliability::RELIABLE_ORDERED, 0, sender, false);
+
+			//we should expect a disconnect soon.
+			return true;
+		case ID_NO_FREE_INCOMING_CONNECTIONS:
+			//printf("The server is full.\n");
+			return true;
+		case ID_DISCONNECTION_NOTIFICATION:
+			//printf("A client has disconnected.\n");
+			return true;
+		case ID_CONNECTION_LOST:
+			//printf("A client lost the connection.\n");
+			return true;
+
+		}
+		return false;
+	}
 }

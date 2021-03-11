@@ -58,6 +58,8 @@ namespace gproNet
 		//	Destructor.
 		virtual ~cRakNetClient();
 
+		bool m_IsOnMaster = true;
+
 		// protected methods
 	protected:
 		// ProcessMessage
